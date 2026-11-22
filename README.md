@@ -10,7 +10,8 @@ An interactive, offline-capable web app for learning and memorizing the Linux co
 | Lessons | Syntax, a plain-language explanation, colour-coded options you can tap, and examples with output |
 | Animations | File tree for `ls cd mkdir cp mv rm ln find`, pipelines, a `grep` scan, and an interactive `chmod` bit grid |
 | Terminal | Simulated bash over a practice filesystem (pipes, redirection, globbing, expansions, tab completion, history), plus 113 guided tasks that check themselves |
-| Flashcards | Leitner spaced repetition with swipe gestures |
+| Flashcards | Leitner spaced repetition with Again/Hard/Good/Easy grading and swipe gestures; a flip mode and a type-the-answer mode with typo detection; fill-in-the-blank cards built from the book's examples |
+| Task reviews | Finished guided tasks come back on a schedule to redo from memory, without hints |
 | Quizzes | Multiple choice, type the command, "which command produced this output?", build-the-command puzzles, a 60-second speed round, and a weak-commands drill |
 | Progress | XP, levels, streaks, badges, a progress ring per chapter, and export/import of progress as JSON |
 | Cheat sheet | Searchable and filterable by chapter |
