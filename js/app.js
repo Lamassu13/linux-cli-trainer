@@ -176,7 +176,7 @@
   var ROUTES = [
     [/^\/?$/, viewHome, 'learn'], [/^\/module\/(.+)$/, viewModule, 'learn'], [/^\/lesson\/(.+)$/, viewLesson, 'learn'], [/^\/cmd\/(.+)$/, viewCmd, 'learn'],
     [/^\/terminal(?:\/(.+))?$/, viewTerminal, 'terminal'], [/^\/cards(?:\/(.+))?$/, viewCards, 'cards'], [/^\/quiz(?:\/(.+))?$/, viewQuiz, 'quiz'],
-    [/^\/speed(?:\/(.+))?$/, viewSpeed, 'quiz'], [/^\/daily$/, viewDaily, 'quiz'], [/^\/man$/, viewMan, 'quiz'], [/^\/cheats$/, viewCheats, 'cheats'], [/^\/progress$/, viewProgress, '']
+    [/^\/speed(?:\/(.+))?$/, viewSpeed, 'quiz'], [/^\/daily$/, viewDaily, 'quiz'], [/^\/man$/, viewMan, 'quiz'], [/^\/play$/, viewPlay, 'play'], [/^\/play\/(story|room|golf|boss)\/(.+)$/, viewGame, 'play'], [/^\/cheats$/, viewCheats, 'cheats'], [/^\/progress$/, viewProgress, '']
   ];
   var backTo = null, lastHash = null;
   function setBack(h) { backTo = h; $('#backBtn').hidden = !h; }
@@ -235,7 +235,7 @@
       '<a class="btn" href="#/cards">' + (due ? 'Review ' + plural(due, 'card') : 'Flashcards') + '</a>' +
       (dueTaskIds().length ? '<a class="btn" href="#/terminal/' + esc(dueTaskIds()[0]) + '/review">Redo ' + plural(dueTaskIds().length, 'task') + '</a>' : '') +
       '<a class="btn" href="#/daily">📅 ' + (SRS.state.daily[utcDay()] !== undefined ? 'Daily ✓ ' + SRS.state.daily[utcDay()] + '/8' : 'Daily challenge') + '</a>' +
-      '<a class="btn ghost" href="#/terminal">Open terminal</a></div>' +
+      '<a class="btn" href="#/play">🎮 Play</a><a class="btn ghost" href="#/terminal">Open terminal</a></div>' +
       '</div><div class="stats">' +
       '<div class="stat"><b>' + ls.level + '</b><span>Level</span><div class="xpbar" aria-hidden="true"><i style="transform:scaleX(' + (ls.into / ls.need).toFixed(3) + ')"></i></div></div>' +
       '<div class="stat"><b>🔥 ' + SRS.streakNow() + '</b><span>Day streak</span></div>' +
@@ -551,7 +551,7 @@
     if (r.note) this.line(r.note, 'note');
     if (r.stub && KNOWN[r.stub]) this.line('→ <a href="#/lesson/' + esc(KNOWN[r.stub]) + '">Open the ' + esc(r.stub) + ' lesson</a>', 'note', true);
     this.updatePs();
-    if (this.opts.onAfter) this.opts.onAfter(before, line);
+    if (this.opts.onAfter) this.opts.onAfter(before, line, r);
     SRS.ran();
     if (activeTask) checkTask(r, this);
   };
@@ -1755,7 +1755,7 @@
       '<div class="card"><h3>Backup &amp; sync</h3><p class="muted">Progress is saved in this browser only. Export it to move it to another device, or as a backup' + (isIOS && !standalone ? '. Safari may clear site data after 7 days without a visit, so export regularly or add the app to your Home Screen' : '') + '.</p>' +
       '<div class="row"><button class="btn primary" type="button" data-export>Export progress (.json)</button><label class="btn" for="importFile">Import file</label><input id="importFile" type="file" accept=".json,application/json" class="sr-only"><button class="btn ghost" type="button" data-paste>Paste JSON</button></div><div id="ioArea"></div></div>' +
       '<div class="card"><h3>Install</h3>' + (standalone ? '<p>Installed. It works offline.</p>' : isIOS ? '<p>In Safari, tap <b>Share</b> → <b>Add to Home Screen</b>. It works offline after the first visit.</p>' : '<p>Install the app for offline use and a full-screen terminal.</p><button class="btn" type="button" data-install ' + (installEvt ? '' : 'disabled') + '>Install app</button>') + '</div>' +
-      '<div class="card"><h3>Keyboard shortcuts</h3><p class="muted">Alt+1…5 switch tabs · / search the cheat sheet · Man page hunt: / search, n / N next and previous match · Flashcards: Space flip, 1–4 grade (Again/Hard/Good/Easy), ← Again, → Good, ↑ Easy · Quiz: 1–9 choose, Enter next · Terminal: Tab complete, ↑/↓ history, Ctrl-A/E/U/K/W/L/C</p></div>' +
+      '<div class="card"><h3>Keyboard shortcuts</h3><p class="muted">Alt+1…6 switch tabs · / search the cheat sheet · Man page hunt: / search, n / N next and previous match · Flashcards: Space flip, 1–4 grade (Again/Hard/Good/Easy), ← Again, → Good, ↑ Easy · Quiz: 1–9 choose, Enter next · Terminal: Tab complete, ↑/↓ history, Ctrl-A/E/U/K/W/L/C</p></div>' +
       '<div class="card"><h3>About</h3><p class="muted">All lessons are paraphrased from <cite>' + esc(C.book) + '</cite> (No Starch Press). This trainer is a study companion, not a replacement for the book.</p><button class="btn danger small" type="button" data-reset>Reset all progress</button></div>';
     $$('[data-theme-set]', root).forEach(function (b) { b.addEventListener('click', function () { setTheme(b.dataset.themeSet); route(true); }); });
     promptStudio($('#promptStudio'));
@@ -1778,6 +1778,260 @@
     });
     var ib = $('[data-install]', root); if (ib) ib.addEventListener('click', function () { if (installEvt) { installEvt.prompt(); installEvt = null; ib.disabled = true; } });
     $('[data-reset]', root).addEventListener('click', function () { if (confirm('Reset all progress? A backup copy is kept in this browser.')) { SRS.reset(); toast('Progress reset'); } });
+  }
+
+  /* ================= PLAY: story mode, escape rooms, command golf, bosses ================= */
+  var GAMES = C.games || {};
+  var STORY = GAMES.story || [], ROOMS = GAMES.rooms || [], GOLF = GAMES.golf || [], BOSSES = GAMES.bosses || [];
+  var MISSIONS = [];
+  STORY.forEach(function (d) { d.missions.forEach(function (m) { m.day = d; MISSIONS.push(m); }); });
+  var GAME_BY = { story: {}, room: {}, golf: {}, boss: {} };
+  MISSIONS.forEach(function (m) { GAME_BY.story[m.id] = m; });
+  ROOMS.forEach(function (r) { GAME_BY.room[r.id] = r; });
+  GOLF.forEach(function (h) { GAME_BY.golf[h.id] = h; });
+  BOSSES.forEach(function (b) { GAME_BY.boss[b.id] = b; });
+  function mmss(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + two(sec % 60); }
+  function two(n) { return (n < 10 ? '0' : '') + n; }
+  function missionOpen(i) { return i === 0 || SRS.gameDone(MISSIONS[i - 1].id) || SRS.gameDone(MISSIONS[i].id); }
+  function gameInfo(id) { return SRS.state.games[id] || null; }
+
+  function viewPlay(root) {
+    var doneM = MISSIONS.filter(function (m) { return SRS.gameDone(m.id); }).length;
+    var html = '<h1>Play</h1><p class="muted">Learn by doing: story missions, escape rooms, command golf and boss fights, all in the practice terminal.</p>';
+    if (MISSIONS.length) {
+      html += '<h2 class="section">📖 Story: your first week (' + doneM + '/' + MISSIONS.length + ')</h2><div class="grid stagger">';
+      STORY.forEach(function (d, di) {
+        html += '<div class="card play-day" style="--i:' + di + '"><h3>' + esc(d.title) + '</h3>' + (d.intro ? '<p class="muted">' + esc(d.intro) + '</p>' : '') + '<ul class="lesson-list">';
+        d.missions.forEach(function (m) {
+          var i = MISSIONS.indexOf(m), open = missionOpen(i), done = SRS.gameDone(m.id);
+          html += '<li>' + (open ? '<a class="lesson-link" href="#/play/story/' + esc(m.id) + '">' : '<span class="lesson-link locked" aria-disabled="true">') +
+            '<span class="check' + (done ? ' done' : '') + '">' + (done ? ICON.check : open ? '›' : '🔒') + '</span><span class="grow">' + esc(m.title) + '<small>' + plural(m.steps.length, 'step') + '</small></span>' + (open ? '</a>' : '</span>') + '</li>';
+        });
+        html += '</ul></div>';
+      });
+      html += '</div>';
+    }
+    if (ROOMS.length) {
+      html += '<h2 class="section">🗝️ Escape rooms</h2><div class="grid stagger">' + ROOMS.map(function (r, i) {
+        var g = gameInfo(r.id);
+        return '<a class="card mod" href="#/play/room/' + esc(r.id) + '" style="--i:' + i + '"><div class="ring play-ico">' + (g ? '🔓' : '🚪') + '</div><div><span class="num">' + '★'.repeat(r.difficulty || i + 1) + '</span><h3>' + esc(r.title) + '</h3><p>' + (g ? 'Escaped in ' + mmss(g.best) + (g.hints ? ' · ' + plural(g.hints, 'hint') : ' · no hints') : 'Find the way out with real commands') + '</p></div></a>';
+      }).join('') + '</div>';
+    }
+    if (GOLF.length) {
+      html += '<h2 class="section">⛳ Command golf</h2><p class="muted">Reach the goal in as few keystrokes as possible. Par is the length of a short, clean solution.</p><div class="grid stagger golf-grid">' + GOLF.map(function (h, i) {
+        var g = gameInfo(h.id), par = h.par.length;
+        return '<a class="card mod" href="#/play/golf/' + esc(h.id) + '" style="--i:' + Math.min(i, 12) + '"><div class="ring play-ico">' + (g ? (g.under ? '🏌️' : '✓') : (i + 1)) + '</div><div><span class="num">Par ' + par + '</span><h3>' + esc(h.title) + '</h3><p>' + (g ? 'Best ' + g.best + (g.best <= par ? ' (at or under par!)' : ' (' + (g.best - par) + ' over)') : 'Not played yet') + '</p></div></a>';
+      }).join('') + '</div>';
+    }
+    if (BOSSES.length) {
+      html += '<h2 class="section">⚔️ Boss fights</h2><div class="grid stagger">' + BOSSES.map(function (b, i) {
+        var g = gameInfo(b.id);
+        return '<a class="card mod" href="#/play/boss/' + esc(b.id) + '" style="--i:' + i + '"><div class="ring play-ico">' + (g ? '🏆' : '👾') + '</div><div><span class="num">' + esc(PARTS[b.part] || '') + '</span><h3>' + esc(b.title) + '</h3><p>' + (g ? 'Defeated · best ' + mmss(g.best) : (b.kind === 'quiz' ? 'Quiz battle' : 'Terminal battle') + ' · ' + mmss(b.time) + ' on the clock') + '</p></div></a>';
+      }).join('') + '</div>';
+    }
+    if (!MISSIONS.length && !ROOMS.length && !GOLF.length && !BOSSES.length) html += '<div class="card"><p>No games yet.</p></div>';
+    root.innerHTML = html;
+  }
+
+  function viewGame(root, kind, id) {
+    var game = (GAME_BY[kind] || {})[id];
+    if (!game) { location.hash = '#/play'; return; }
+    setBack('#/play');
+    if (kind === 'boss' && game.kind === 'quiz') return quizBoss(root, game);
+    if (kind === 'story' && !missionOpen(MISSIONS.indexOf(game))) { location.hash = '#/play'; return; }
+    var steps = kind === 'room' || kind === 'golf' ? null : game.steps, si = 0, timer = null, t0 = Date.now(), over = false;
+    var strokes = 0, hintsUsed = 0, gaveUp = false, peeked = false, timeLeft = game.time || 0, penalty = 0, hinted = {};
+    var page = el('<div class="term-page with-task game-page"></div>');
+    var side = el('<div class="term-side"></div>'), panel = el('<section class="task-panel game-panel" aria-label="Game"></section>'), treeHost = el('<div class="tree-host"></div>');
+    side.appendChild(panel); side.appendChild(treeHost); page.appendChild(side);
+    var host = el('<div class="term-host" style="min-height:0"></div>');
+    page.appendChild(host); root.appendChild(page);
+    var freeShell = shell, freeTranscript = transcript;   // the free-play terminal comes back when you leave the game
+    onLeave(function () { shell = freeShell; transcript = freeTranscript; });
+    function fresh() {
+      shell = userShell(); shell.load(game.setup);
+      transcript = [{ c: 'note', h: esc(kind === 'golf' ? 'Hole loaded. Every character you type counts.' : kind === 'room' ? 'The room is set. Look around.' : 'Ready.') + ' You are in <code>' + esc(shell.cwd) + '</code>.' }];
+    }
+    fresh();
+    var tree = new LiveTree(treeHost), tv;
+    var eyebrow = kind === 'story' ? 'Story · ' + game.day.title : kind === 'room' ? 'Escape room · ' + '★'.repeat(game.difficulty || 1) : kind === 'golf' ? 'Command golf · par ' + game.par.length : 'Boss · ' + (PARTS[game.part] || '');
+    panel.innerHTML = '<p class="eyebrow">' + esc(eyebrow) + '</p><h1 class="game-title">' + esc(game.title) + '</h1>' +
+      (kind === 'boss' ? '<div class="boss-hud"><div class="hpbar" role="progressbar" aria-label="Boss health" aria-valuemin="0" aria-valuemax="' + steps.length + '"><i></i></div><span class="timer" role="timer" aria-live="off"></span></div>' : '') +
+      (kind === 'room' ? '<div class="boss-hud"><span class="muted">Time</span><span class="timer" aria-live="off">0:00</span></div>' : '') +
+      (kind === 'golf' ? '<div class="golf-hud"><span>Strokes <b class="strokes">0</b></span><span>Par <b>' + game.par.length + '</b></span></div>' : '') +
+      '<p class="game-intro">' + esc(game.intro || game.goal) + '</p>' + (kind === 'golf' && game.intro ? '<p><b>Goal:</b> ' + esc(game.goal) + '</p>' : '') +
+      (steps ? '<ol class="steps"></ol>' : '') +
+      '<div class="task-status muted" aria-live="polite"></div>' +
+      '<div class="row task-actions"></div><div class="task-reveal muted" aria-live="polite"></div>';
+    var stepsEl = $('.steps', panel), status = $('.task-status', panel), actions = $('.task-actions', panel), reveal = $('.task-reveal', panel);
+    function drawSteps() {
+      if (!stepsEl) return;
+      stepsEl.innerHTML = steps.map(function (st, i) {
+        if (i < si) return '<li class="done">' + ICON.check + '<span>' + esc(st.goal) + '</span></li>';
+        if (i === si) return '<li class="cur" aria-current="step"><span>' + esc(st.goal) + '</span></li>';
+        return '<li class="todo"><span>Step ' + (i + 1) + '</span></li>';
+      }).join('');
+      if (kind === 'boss') { $('.hpbar i', panel).style.transform = 'scaleX(' + (1 - si / steps.length) + ')'; $('.hpbar', panel).setAttribute('aria-valuenow', steps.length - si); }
+    }
+    function drawActions() {
+      if (over) return;
+      if (kind === 'golf') actions.innerHTML = '<button class="btn small" type="button" data-restart>Restart hole</button><button class="btn small ghost" type="button" data-show>Show par solution</button>';
+      else if (kind === 'room') actions.innerHTML = '<button class="btn small" type="button" data-hint>Hint (' + (game.hints.length - hintsUsed) + ' left)</button><button class="btn small ghost" type="button" data-show>Give up</button>';
+      else actions.innerHTML = '<button class="btn small" type="button" data-hint>Hint' + (kind === 'boss' ? ' (−15 s)' : '') + '</button>' + (kind === 'story' ? '<button class="btn small ghost" type="button" data-show>Show solution</button>' : '');
+      var hb = $('[data-hint]', actions), sb = $('[data-show]', actions), rb = $('[data-restart]', actions);
+      if (hb) hb.addEventListener('click', function () {
+        if (kind === 'room') {
+          if (hintsUsed >= game.hints.length) return;
+          reveal.innerHTML = game.hints.slice(0, ++hintsUsed).map(function (h, i) { return '<p>💡 ' + (i + 1) + '. ' + esc(h) + '</p>'; }).join('');
+          drawActions();
+        } else {
+          reveal.textContent = '💡 ' + (steps[si].hint || 'Think about which command fits.');
+          if (kind === 'boss' && !hinted[si]) { hinted[si] = 1; penalty += 15; tick(); }
+        }
+        tv.input.focus({ preventScroll: true });
+      });
+      if (sb) sb.addEventListener('click', function () {
+        if (kind === 'golf') { peeked = true; reveal.innerHTML = 'Par solution: <code>' + esc(game.par) + '</code> (' + game.par.length + ' characters). Peeking means this round won’t count toward your best.'; }
+        else if (kind === 'room') { gaveUp = true; reveal.innerHTML = '<p>One way out:</p><ol class="sol">' + [].concat(game.solution).map(function (c) { return '<li><code>' + esc(c) + '</code></li>'; }).join('') + '</ol>'; }
+        else { var sol = [].concat(steps[si].solution); reveal.innerHTML = 'Solution: ' + sol.map(function (c) { return '<code>' + esc(c) + '</code>'; }).join(' then ') + (sol.length === 1 ? ' <button class="btn small" type="button" data-type>Type it for me</button>' : ''); var tb = $('[data-type]', reveal); if (tb) tb.addEventListener('click', function () { tv.typeRun(sol[0]); }); }
+      });
+      if (rb) rb.addEventListener('click', function () {
+        fresh(); strokes = 0; peeked = false; $('.strokes', panel).textContent = '0'; reveal.textContent = ''; status.textContent = '';
+        tv.restore(); tv.updatePs(); tree.open = new Set(); tree.draw(tree.capture()); tv.input.focus({ preventScroll: true });
+      });
+    }
+    function tick() {
+      var el2 = $('.timer', panel); if (!el2) return;
+      var used = (Date.now() - t0) / 1000 + penalty;
+      if (kind === 'room') el2.textContent = mmss(used);
+      if (kind === 'boss') {
+        var left = timeLeft - used; el2.textContent = mmss(left); el2.classList.toggle('low', left <= 30);
+        if (left <= 0 && !over) lose();
+      }
+    }
+    function finish(win, extra) {
+      over = true; clearInterval(timer); actions.innerHTML = ''; tv.input.blur();
+      panel.classList.add(win ? 'done' : 'lost');
+      if (win) celebrate();
+      status.innerHTML = extra;
+    }
+    function lose() {
+      finish(false, '<p class="lose">⏱️ Time’s up! The boss got away.</p><div class="row"><button class="btn primary" type="button" data-retry>Try again</button><a class="btn" href="#/play">Back to Play</a></div>');
+      $('[data-retry]', status).addEventListener('click', function () { route(); });
+    }
+    function nextLink() {
+      if (kind === 'story') { var nx = MISSIONS[MISSIONS.indexOf(game) + 1]; return nx ? '<a class="btn primary" href="#/play/story/' + esc(nx.id) + '">Next mission ›</a>' : ''; }
+      var list = kind === 'room' ? ROOMS : kind === 'golf' ? GOLF : BOSSES, n2 = list[list.indexOf(game) + 1];
+      return n2 ? '<a class="btn primary" href="#/play/' + kind + '/' + esc(n2.id) + '">Next ' + (kind === 'golf' ? 'hole' : kind === 'room' ? 'room' : 'boss') + ' ›</a>' : '';
+    }
+    function win() {
+      var used = Math.round((Date.now() - t0) / 1000 + penalty), msg = '', res, xp = 0;
+      if (kind === 'boss' && timeLeft - used <= 0) return lose();
+      if (kind === 'story') { res = SRS.gameResult(game.id); xp = res.first ? 25 : 0; msg = '<p class="win">✓ Mission complete!</p>' + (game.outro ? '<p>' + esc(game.outro) + '</p>' : ''); }
+      else if (kind === 'room') {
+        if (gaveUp) { msg = '<p class="win">🚪 You’re out, with the solution’s help. Try again without it to earn the badge and XP.</p>'; }
+        else { res = SRS.gameResult(game.id, { best: used, hints: hintsUsed }); xp = res.first ? Math.max(10, 50 - hintsUsed * 10) : 0; msg = '<p class="win">🔓 Escaped in ' + mmss(used) + (hintsUsed ? ' with ' + plural(hintsUsed, 'hint') : ' without hints') + '!</p>' + (res.improved ? '<p>New best time!</p>' : ''); }
+        if (game.outro) msg += '<p>' + esc(game.outro) + '</p>';
+      } else if (kind === 'golf') {
+        var par = game.par.length, d = strokes - par, under = d <= 0;
+        if (peeked) res = { first: false, improved: false };   // looked at the answer: practice round only
+        else { res = SRS.gameResult(game.id, { best: strokes, under: under }); xp = res.first ? 15 + (under ? 10 : 0) : 0; }
+        msg = '<p class="win">⛳ ' + strokes + ' strokes · ' + (d < 0 ? (-d) + ' under par! 🦅' : d === 0 ? 'right on par!' : d + ' over par') + '</p>' + (res.improved ? '<p>New personal best!</p>' : '') +
+          (peeked ? '<p class="muted">Practice round (you peeked at par), so it isn’t scored. Play again to set a best.</p>' : '') + '<p>Par solution: <code>' + esc(game.par) + '</code></p>' + (game.tip ? '<p class="muted">' + esc(game.tip) + '</p>' : '');
+      } else {
+        res = SRS.gameResult(game.id, { best: used }); xp = res.first ? 100 : 0;
+        msg = '<p class="win">🏆 ' + esc(game.title) + ' is defeated with ' + mmss(timeLeft - used) + ' to spare!</p>' + (res.improved ? '<p>New best time!</p>' : '');
+      }
+      if (xp) { SRS.addXP(xp, kind); msg += '<p class="muted">+' + xp + ' XP</p>'; }
+      finish(true, msg + '<div class="row">' + nextLink() + '<a class="btn" href="#/play">Back to Play</a>' + (kind === 'golf' ? '<button class="btn ghost" type="button" data-retry>Play again</button>' : '') + '</div>');
+      var rr = $('[data-retry]', status); if (rr) rr.addEventListener('click', function () { route(); });
+    }
+    function after(before, line, r) {
+      tree.update(before, line);
+      if (over || !line.trim()) return;
+      if (kind === 'golf') { strokes += line.trim().length; $('.strokes', panel).textContent = strokes; }
+      if (steps) {
+        if (shell.check(steps[si].check, r).every(Boolean)) {
+          si++; reveal.textContent = '';
+          if (si >= steps.length) { drawSteps(); return win(); }
+          drawSteps();
+          status.textContent = '✓ Step ' + si + ' done. Step ' + (si + 1) + ' of ' + steps.length + ': ' + steps[si].goal;
+          if (kind === 'boss') { var hp = $('.hpbar', panel); anim(hp, [{ transform: 'translateX(-4px)' }, { transform: 'translateX(4px)' }, { transform: 'none' }], { duration: 260 }); }
+          anim($('.steps li.cur', panel), [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 260 });
+        }
+      } else if (shell.check(game.check, r).every(Boolean)) win();
+    }
+    tv = new TermView(host, {
+      chips: ['ls', 'cd', 'cat', 'grep', 'find', 'chmod', 'echo', 'sort'], title: kind === 'golf' ? 'golf' : kind, treeToggle: true,
+      onBefore: function () { return tree.capture(); },
+      onAfter: after,
+      onReset: function () {
+        fresh(); tv.restore(); tv.updatePs(); tree.open = new Set(); tree.draw(tree.capture());
+        if (kind === 'golf') { strokes = 0; peeked = false; $('.strokes', panel).textContent = '0'; }
+        if (steps && !over) { si = 0; reveal.textContent = ''; drawSteps(); status.textContent = 'Files reset, so the steps start again from step 1.'; }   // later steps need earlier ones' files
+      },
+      onTree: function (on) { page.classList.toggle('show-tree', on); if (on) tree.focusRow(); requestAnimationFrame(onViewport); }
+    });
+    $('.term', host).style.height = '100%';
+    document.body.classList.add('route-terminal');   // full-height layout like the terminal page
+    drawSteps(); drawActions();
+    if (kind === 'room' || kind === 'boss') { tick(); timer = setInterval(tick, 1000); }
+    onLeave(function () { clearInterval(timer); over = true; });
+    requestAnimationFrame(onViewport);
+    if (matchMedia('(hover: hover) and (pointer: fine)').matches) tv.input.focus({ preventScroll: true });
+  }
+
+  // Part IV boss: a timed quiz battle with lives (scripting isn't simulated)
+  function quizBoss(root, b) {
+    var pool = [];
+    b.chapters.forEach(function (n) {
+      var m = MODS.get('ch' + (n < 10 ? '0' : '') + n); if (!m) return;
+      m.lessons.forEach(function (l) { (l.quiz || []).forEach(function (q) { pool.push(Object.assign({}, q)); }); });
+    });
+    pool = pool.concat(pairQuestions(function (p) { return b.chapters.indexOf(p.ch) >= 0; }));
+    // enough questions to absorb every life: HP = count, each miss costs a life instead of the fight
+    var qs = shuffle(pool).slice(0, b.count + b.lives - 1), hpMax = Math.min(b.count, qs.length), hp = hpMax, lives = b.lives, t0 = Date.now(), timer = null, over = false, i = 0;
+    root.innerHTML = '<p class="eyebrow">Boss · ' + esc(PARTS[b.part] || '') + '</p><h1>' + esc(b.title) + '</h1><p class="muted">' + esc(b.intro) + '</p>' +
+      '<div class="card boss-arena"><div class="boss-hud"><span aria-hidden="true" class="boss-face">👾</span><div class="hpbar" role="progressbar" aria-label="Boss health" aria-valuemin="0"><i></i></div><span class="timer" role="timer" aria-live="off"></span></div>' +
+      '<div class="lives" aria-live="polite"></div></div><div id="bossQ"></div>';
+    if (!qs.length) { $('#bossQ').innerHTML = '<div class="card"><p>This boss has no questions yet.</p><a class="btn" href="#/play">Back to Play</a></div>'; return; }
+    var hpEl = $('.hpbar i', root), livesEl = $('.lives', root), host = $('#bossQ'), timerEl = $('.timer', root), box = null;
+    var shownLives = -1;
+    function hud() {
+      hpEl.style.transform = 'scaleX(' + (hp / hpMax) + ')';
+      var bar = hpEl.parentNode; bar.setAttribute('aria-valuemax', hpMax); bar.setAttribute('aria-valuenow', hp); bar.setAttribute('aria-valuetext', hp + ' of ' + hpMax + ' health left');
+      if (lives !== shownLives) { shownLives = lives; livesEl.textContent = 'Lives: ' + '❤️'.repeat(lives) + '🖤'.repeat(b.lives - lives); }   // announce only real changes
+    }
+    function tick() { var left = b.time - (Date.now() - t0) / 1000; timerEl.textContent = mmss(left); timerEl.classList.toggle('low', left <= 30); if (left <= 0 && !over) end(false, '⏱️ Time’s up!'); }
+    function key(e) { if (box && box._key) box._key(e); }
+    document.addEventListener('keydown', key);
+    function next() {
+      if (over) return;
+      if (hp <= 0) return end(true);
+      if (i >= qs.length) return end(false, 'Out of questions.');
+      box = renderQuestion(host, qs[i++], function (ok) {
+        if (ok) { hp--; anim($('.boss-face', root), [{ transform: 'rotate(-12deg) scale(.9)' }, { transform: 'none' }], { duration: 300 }); }
+        else { lives--; anim(livesEl, [{ transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 300 }); }
+        hud();
+        if (lives <= 0) return end(false, '💔 Out of lives.');
+        next();
+      });
+    }
+    function end(won, why) {
+      over = true; clearInterval(timer); box = null;
+      var used = Math.round((Date.now() - t0) / 1000), msg;
+      if (won) {
+        var res = SRS.gameResult(b.id, { best: used });
+        if (res.first) SRS.addXP(100, 'boss');
+        celebrate();
+        msg = '<p class="win">🏆 ' + esc(b.title) + ' is defeated in ' + mmss(used) + '!</p>' + (res.first ? '<p class="muted">+100 XP</p>' : res.improved ? '<p>New best time!</p>' : '');
+      } else msg = '<p class="lose">' + esc(why) + ' The boss escapes this time.</p>';
+      host.innerHTML = '<div class="card" style="text-align:center">' + msg + '<div class="row" style="justify-content:center"><button class="btn primary" type="button" data-retry>' + (won ? 'Fight again' : 'Try again') + '</button><a class="btn" href="#/play">Back to Play</a></div></div>';
+      $('[data-retry]', host).addEventListener('click', function () { route(); });
+    }
+    onLeave(function () { over = true; clearInterval(timer); document.removeEventListener('keydown', key); });
+    hud(); tick(); timer = setInterval(tick, 1000);
+    next();
   }
 
   /* ================= PROMPT STUDIO ================= */
@@ -1831,7 +2085,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !$('#sheet').hidden) { closeSheet(); return; }
     var typing = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
-    if (e.altKey && /^Digit[1-5]$/.test(e.code)) { e.preventDefault(); location.hash = $$('#tabbar a')[+e.code.slice(5) - 1].getAttribute('href'); return; }
+    if (e.altKey && /^Digit[1-6]$/.test(e.code)) { e.preventDefault(); location.hash = $$('#tabbar a')[+e.code.slice(5) - 1].getAttribute('href'); return; }
     if (!typing && e.key === '/' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       var own = $('[data-slash]');

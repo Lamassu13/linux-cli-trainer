@@ -20,6 +20,7 @@ An interactive, offline-capable web app for learning and memorizing the Linux co
 | Daily challenge | The same 8 questions for everyone each day, scored once and counted toward your streak |
 | Challenge links | After a quiz or speed round, share a link that gives a friend the exact same questions and shows your score to beat |
 | Progress | XP, levels, streaks, badges, a progress ring per chapter, and export/import of progress as JSON |
+| Play | Story mode (15 missions over a sysadmin's first week), 4 escape rooms with hints, 12 command-golf holes scored by keystrokes against par, and 4 boss fights (timed terminal battles for Parts I–III, a quiz battle for Part IV) |
 | Cheat sheet | Searchable and filterable by chapter |
 | App | Works offline (PWA) and can be installed to the home screen |
 
@@ -84,6 +85,7 @@ Field rules:
 - **`viz`** can be `tree`, `pipe`, `scan` (grep) or `chmod`.
 - **Task `check`** types are `exists`, `absent`, `isdir`, `content` (with `re`), `cwd`, `mode` (with `mode`), `cmd` and `out` (each with `re`). Tasks always start from a fresh copy of the practice filesystem with the working directory at `/home/me`.
 - **Quiz types** are `mc`, `fill` (with `accept: [...]`), `output` (with `out`, `choices`, `answer`) and `order` (with `parts: [...]`). The app also generates extra questions from every command's flags and examples.
+- **Games** live in `CONTENT.games` at the end of `content.js` (story, rooms, golf, bosses). Each puzzle has a `setup` that builds its files, plus checks; the validator replays every solution through the simulator.
 - **Mix-up pairs** live in `CONTENT.pairs` at the end of `content.js`: `{ id, ch, a: {label, cmd}, b: {label, cmd}, items: [{ q, ans: "a"|"b", why }] }`.
 - **Progress ids** for flashcards come from command and flag ids (`c:cp`, `f:cp:-r`). Keep those ids stable so saved progress survives your edits.
 

@@ -25638,3 +25638,2315 @@ window.CONTENT.pairs = [
   { "q": "Passes each original argument along as its own word, spaces intact", "ans": "a", "why": "\"$@\" keeps every argument separate; it is the right choice in most scripts." },
   { "q": "Joins all the arguments into one single word", "ans": "b", "why": "\"$*\" glues the arguments together into one string." } ] }
 ];
+
+/* Games (Play tab): story missions, escape rooms, command golf and boss fights. Every puzzle runs in the simulator.
+ *   story:  [{ id, title, intro, missions: [{ id, title, intro, setup, steps: [{ goal, hint, check, solution }], outro }] }]
+ *   rooms:  [{ id, title, difficulty, intro, setup, hints: [..], check, solution: [..], outro }]
+ *   golf:   [{ id, title, goal, setup, check, par: "shortest clean command line", tip }]
+ *   bosses: [{ id, part, kind: "terminal", title, intro, time, setup, steps }] or [{ ..., kind: "quiz", lives, count, chapters }]
+ *   setup:  { remove, dirs, files: { path: "text" | { data, mode, age } }, links, modes, cwd }   (see terminal.js sh.load)
+ * Check every change with: node tools/validate.mjs
+ */
+window.CONTENT.games = {
+ "story": [
+  {
+   "id": "story.mon",
+   "title": "Monday: Finding Your Way Around",
+   "intro": "Day one at the Sourdough Lane bakery office. The computer is old, the coffee is strong, and nobody remembers where anything is saved.",
+   "missions": [
+    {
+     "id": "story.mon.m1",
+     "title": "Clocking In",
+     "intro": "The manager waves at a terminal and disappears into a cloud of flour. Somewhere in the bakery folder there is a note for you, and a locker code you will definitely need.",
+     "setup": {
+      "files": {
+       "~/bakery/front-desk/welcome.txt": "Welcome to the team!\nYour apron is in the kitchen locker.\nThe locker code is printed in the oven manual.\n",
+       "~/bakery/kitchen/ovens/manual.txt": "OVEN 2 RUNS HOT. Turn the trays halfway through.\nStaff locker code: 7731\n",
+       "~/bakery/kitchen/aprons.txt": "One apron, size M, already floury.\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Print your current working directory to see where your shift begins.",
+       "hint": "pwd prints the folder you are standing in.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^/home/me$"
+        },
+        {
+         "t": "cmd",
+         "re": "^pwd"
+        }
+       ],
+       "solution": "pwd"
+      },
+      {
+       "goal": "Move into the bakery's front-desk folder.",
+       "hint": "cd takes a path. This one is bakery/front-desk.",
+       "check": [
+        {
+         "t": "cwd",
+         "p": "~/bakery/front-desk"
+        }
+       ],
+       "solution": "cd bakery/front-desk"
+      },
+      {
+       "goal": "Read the welcome note waiting on the desk.",
+       "hint": "cat or less, then the file name. Press Tab to complete it.",
+       "check": [
+        {
+         "t": "out",
+         "re": "locker code"
+        }
+       ],
+       "solution": "cat welcome.txt"
+      },
+      {
+       "goal": "Walk over to the ovens folder, climbing up a level with .. first.",
+       "hint": "The parent folder is called .. so try cd ../kitchen/ovens",
+       "check": [
+        {
+         "t": "cwd",
+         "p": "~/bakery/kitchen/ovens"
+        },
+        {
+         "t": "cmd",
+         "re": "\\.\\."
+        }
+       ],
+       "solution": "cd ../kitchen/ovens"
+      },
+      {
+       "goal": "Open the oven manual with less and find your locker code.",
+       "hint": "less manual.txt (on a real system, press q to get out of less).",
+       "check": [
+        {
+         "t": "out",
+         "re": "7731"
+        },
+        {
+         "t": "cmd",
+         "re": "^less\\b"
+        }
+       ],
+       "solution": "less manual.txt"
+      }
+     ],
+     "outro": "Locker 7731 clicks open. One apron, slightly floury. You are officially staff."
+    },
+    {
+     "id": "story.mon.m2",
+     "title": "Stock-Taking in the Storeroom",
+     "intro": "The storeroom folder is a mess of delivery notes. The manager wants to know what came in most recently, how big the files are, and what that strange unlabelled thing is.",
+     "setup": {
+      "cwd": "~/bakery/storeroom",
+      "files": {
+       "~/bakery/storeroom/flour.txt": {
+        "data": "Flour, 25 kg bags: 4\n",
+        "age": 600
+       },
+       "~/bakery/storeroom/sugar.txt": {
+        "data": "Sugar, 10 kg bags: 2\n",
+        "age": 300
+       },
+       "~/bakery/storeroom/butter.txt": {
+        "data": "Butter arrived this morning. Keep it cold!\n",
+        "age": 5
+       },
+       "~/bakery/storeroom/yeast.txt": {
+        "data": "Yeast: plenty. It keeps growing.\n",
+        "age": 1440
+       },
+       "~/bakery/storeroom/unlabelled": {
+        "data": "Raisins, 2 kg, origin unknown\n",
+        "age": 120
+       },
+       "~/bakery/storeroom/big-order.txt": {
+        "data": "order line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\norder line 4 lorem crumbs\norder line 2 lorem crumbs\norder line 0 lorem crumbs\norder line 5 lorem crumbs\norder line 3 lorem crumbs\norder line 1 lorem crumbs\norder line 6 lorem crumbs\n",
+        "age": 900
+       },
+       "~/bakery/storeroom/.mousetrap": "Snap! Still empty. Good news.\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "List everything in the storeroom, hidden files included.",
+       "hint": "Names that begin with a dot stay hidden from plain ls. The -a option reveals them.",
+       "check": [
+        {
+         "t": "out",
+         "re": "\\.mousetrap"
+        }
+       ],
+       "solution": "ls -a"
+      },
+      {
+       "goal": "List the storeroom so the most recently changed file comes first.",
+       "hint": "ls -t sorts by modification time, newest at the top.",
+       "check": [
+        {
+         "t": "out",
+         "re": "butter\\.txt[\\s\\S]*unlabelled[\\s\\S]*sugar\\.txt[\\s\\S]*flour\\.txt[\\s\\S]*yeast\\.txt"
+        },
+        {
+         "t": "cmd",
+         "re": "^ls\\b.*-\\w*t"
+        }
+       ],
+       "solution": "ls -t"
+      },
+      {
+       "goal": "Long-list the storeroom with sizes shown in K and M instead of raw bytes.",
+       "hint": "Combine -l with -h for human-friendly sizes.",
+       "check": [
+        {
+         "t": "out",
+         "re": "\\d\\.\\dK .*big-order\\.txt"
+        },
+        {
+         "t": "cmd",
+         "re": "^ls\\b(?=.*-\\w*l)(?=.*-\\w*h)"
+        }
+       ],
+       "solution": "ls -lh"
+      },
+      {
+       "goal": "Ask Linux what kind of file \"unlabelled\" really is.",
+       "hint": "The file command peeks inside and reports the type.",
+       "check": [
+        {
+         "t": "out",
+         "re": "unlabelled: ASCII text"
+        }
+       ],
+       "solution": "file unlabelled"
+      },
+      {
+       "goal": "Inventory done. Jump straight back to your home folder.",
+       "hint": "cd with nothing after it always takes you home.",
+       "check": [
+        {
+         "t": "cwd",
+         "p": "~"
+        }
+       ],
+       "solution": "cd"
+      }
+     ],
+     "outro": "Butter is the freshest arrival, the big order is a few kilobytes of paperwork, and the mystery file is just raisins. Crisis averted."
+    },
+    {
+     "id": "story.mon.m3",
+     "title": "A Tour of the Building",
+     "intro": "Before lunch, a quick tour of the system itself. Old hands say every Linux box keeps its settings in /etc, and the bakery folder has a shortcut that nobody can explain.",
+     "setup": {
+      "files": {
+       "~/bakery/recipes/scone-v1.txt": "Scones v1: too dry. Do not use.\n",
+       "~/bakery/recipes/scone-v2.txt": "Scones v2: extra butter, bake 15 minutes at 220.\n"
+      },
+      "links": {
+       "~/bakery/scone": "recipes/scone-v2.txt"
+      }
+     },
+     "steps": [
+      {
+       "goal": "List the contents of /etc, where system-wide settings live.",
+       "hint": "Give ls an absolute path: /etc",
+       "check": [
+        {
+         "t": "out",
+         "re": "hosts"
+        },
+        {
+         "t": "out",
+         "re": "passwd"
+        },
+        {
+         "t": "cmd",
+         "re": "/etc"
+        }
+       ],
+       "solution": "ls /etc"
+      },
+      {
+       "goal": "Read the file in /etc that matches names such as localhost to network addresses.",
+       "hint": "It is called hosts.",
+       "check": [
+        {
+         "t": "out",
+         "re": "127\\.0\\.0\\.1\\s+localhost"
+        }
+       ],
+       "solution": "cat /etc/hosts"
+      },
+      {
+       "goal": "Long-list ~/bakery and find out which recipe the scone shortcut points to.",
+       "hint": "In ls -l output, a symbolic link shows an arrow -> to its target.",
+       "check": [
+        {
+         "t": "out",
+         "re": "scone -> recipes/scone-v2\\.txt"
+        }
+       ],
+       "solution": "ls -l ~/bakery"
+      },
+      {
+       "goal": "Ask the file command what ~/bakery/scone is.",
+       "hint": "file works on links too.",
+       "check": [
+        {
+         "t": "out",
+         "re": "symbolic link to recipes/scone-v2\\.txt"
+        }
+       ],
+       "solution": "file ~/bakery/scone"
+      },
+      {
+       "goal": "Read the recipe through the shortcut, not through its real name.",
+       "hint": "cat follows the link for you: cat ~/bakery/scone",
+       "check": [
+        {
+         "t": "out",
+         "re": "extra butter"
+        },
+        {
+         "t": "cmd",
+         "re": "scone(\\s|$)"
+        }
+       ],
+       "solution": "cat ~/bakery/scone"
+      }
+     ],
+     "outro": "The shortcut always points at the latest scone recipe. Whoever set that up deserves a pastry."
+    }
+   ]
+  },
+  {
+   "id": "story.tue",
+   "title": "Tuesday: Paper Pushing",
+   "intro": "Today is all about files: making folders, moving order slips, copying, deleting and linking. Wildcards will save your fingers.",
+   "missions": [
+    {
+     "id": "story.tue.m1",
+     "title": "Sorting the Order Slips",
+     "intro": "Customer order slips pile up in ~/orders. January is done, February is waiting, and somebody left backup files everywhere.",
+     "setup": {
+      "cwd": "~/orders",
+      "files": {
+       "~/orders/jan-01.txt": "Order jan-01: 12 croissants\n",
+       "~/orders/jan-02.txt": "Order jan-02: 12 croissants\n",
+       "~/orders/jan-03.txt": "Order jan-03: 12 croissants\n",
+       "~/orders/jan-04.txt": "Order jan-04: 12 croissants\n",
+       "~/orders/feb-01.txt": "Order feb-01: 12 croissants\n",
+       "~/orders/feb-02.txt": "Order feb-02: 12 croissants\n",
+       "~/orders/feb-03.txt": "Order feb-03: 12 croissants\n",
+       "~/orders/mar-01.txt": "Order mar-01: 12 croissants\n",
+       "~/orders/old-01.bak": "stale copy\n",
+       "~/orders/old-02.bak": "stale copy\n",
+       "~/orders/old-03.bak": "stale copy\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Create two folders, done and pending, with a single mkdir command.",
+       "hint": "mkdir accepts more than one name.",
+       "check": [
+        {
+         "t": "isdir",
+         "p": "~/orders/done"
+        },
+        {
+         "t": "isdir",
+         "p": "~/orders/pending"
+        },
+        {
+         "t": "cmd",
+         "re": "^mkdir\\b(?=.*\\bdone\\b)(?=.*\\bpending\\b)"
+        }
+       ],
+       "solution": "mkdir done pending"
+      },
+      {
+       "goal": "Move every January slip into done using a wildcard.",
+       "hint": "jan-* matches every name that starts with jan-",
+       "check": [
+        {
+         "t": "absent",
+         "p": "~/orders/jan-01.txt"
+        },
+        {
+         "t": "absent",
+         "p": "~/orders/jan-04.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/done/jan-01.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/done/jan-02.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/done/jan-03.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/done/jan-04.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/feb-01.txt"
+        },
+        {
+         "t": "cmd",
+         "re": "[*?[]"
+        }
+       ],
+       "solution": "mv jan-* done"
+      },
+      {
+       "goal": "Copy the February slips into pending, leaving the originals in place.",
+       "hint": "cp, not mv. A wildcard works here too.",
+       "check": [
+        {
+         "t": "exists",
+         "p": "~/orders/pending/feb-01.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/pending/feb-02.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/pending/feb-03.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/feb-01.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/feb-03.txt"
+        }
+       ],
+       "solution": "cp feb-* pending"
+      },
+      {
+       "goal": "Delete all the .bak files in one go.",
+       "hint": "rm with *.bak. Be careful: rm has no undo.",
+       "check": [
+        {
+         "t": "absent",
+         "p": "~/orders/old-01.bak"
+        },
+        {
+         "t": "absent",
+         "p": "~/orders/old-02.bak"
+        },
+        {
+         "t": "absent",
+         "p": "~/orders/old-03.bak"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/mar-01.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/feb-02.txt"
+        }
+       ],
+       "solution": "rm *.bak"
+      },
+      {
+       "goal": "Rename mar-01.txt to mar-01-urgent.txt.",
+       "hint": "Renaming is just mv with a new name.",
+       "check": [
+        {
+         "t": "absent",
+         "p": "~/orders/mar-01.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/orders/mar-01-urgent.txt"
+        }
+       ],
+       "solution": "mv mar-01.txt mar-01-urgent.txt"
+      }
+     ],
+     "outro": "January filed, February queued, March flagged. The order desk has never looked this tidy."
+    },
+    {
+     "id": "story.tue.m2",
+     "title": "Two Kinds of Link",
+     "intro": "The head baker keeps the bread recipe in ~/kitchen/recipes and wants a couple of shortcuts to it. Time to see how the two kinds of link behave when the original goes missing.",
+     "setup": {
+      "cwd": "~/kitchen",
+      "files": {
+       "~/kitchen/recipes/bread-v3.txt": "Sourdough v3: flour, water, salt and a lot of patience.\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Make a symbolic link named bread that points to recipes/bread-v3.txt.",
+       "hint": "ln -s TARGET LINKNAME",
+       "check": [
+        {
+         "t": "exists",
+         "p": "~/kitchen/bread"
+        },
+        {
+         "t": "content",
+         "p": "~/kitchen/bread",
+         "re": "patience"
+        },
+        {
+         "t": "cmd",
+         "re": "^ln\\s+-s\\b"
+        }
+       ],
+       "solution": "ln -s recipes/bread-v3.txt bread"
+      },
+      {
+       "goal": "Now make a hard link named bread-hard.txt to the same recipe.",
+       "hint": "Plain ln, no -s.",
+       "check": [
+        {
+         "t": "exists",
+         "p": "~/kitchen/bread-hard.txt"
+        },
+        {
+         "t": "content",
+         "p": "~/kitchen/bread-hard.txt",
+         "re": "patience"
+        },
+        {
+         "t": "cmd",
+         "re": "^ln\\s+(?!-s)"
+        }
+       ],
+       "solution": "ln recipes/bread-v3.txt bread-hard.txt"
+      },
+      {
+       "goal": "Delete the original file, recipes/bread-v3.txt.",
+       "hint": "rm and the path.",
+       "check": [
+        {
+         "t": "absent",
+         "p": "~/kitchen/recipes/bread-v3.txt"
+        }
+       ],
+       "solution": "rm recipes/bread-v3.txt"
+      },
+      {
+       "goal": "Try to read the symbolic link, bread. What happens?",
+       "hint": "cat bread",
+       "check": [
+        {
+         "t": "out",
+         "re": "No such file"
+        },
+        {
+         "t": "cmd",
+         "re": "bread\\s*$"
+        }
+       ],
+       "solution": "cat bread"
+      },
+      {
+       "goal": "Now read the hard link, bread-hard.txt.",
+       "hint": "cat bread-hard.txt",
+       "check": [
+        {
+         "t": "out",
+         "re": "patience"
+        },
+        {
+         "t": "cmd",
+         "re": "bread-hard"
+        }
+       ],
+       "solution": "cat bread-hard.txt"
+      }
+     ],
+     "outro": "The symbolic link only remembered a name, so it broke. The hard link points at the data itself, which survives as long as one name for it remains."
+    },
+    {
+     "id": "story.tue.m3",
+     "title": "Spring Cleaning",
+     "intro": "The shared folder holds the menus and a lot of junk. Back up the menus into a dated folder, then clear out the clutter.",
+     "setup": {
+      "files": {
+       "~/shared/menu/summer.txt": "Lemon tart, iced buns\n",
+       "~/shared/menu/winter.txt": "Stollen, mince pies\n",
+       "~/shared/old-junk/note.txt": "Who left this here?\n",
+       "~/shared/old-junk/boxes/tape/roll.txt": "Half a roll of tape\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Create the nested folder ~/backup/2026/nov with one command.",
+       "hint": "mkdir -p builds any missing parent folders along the way.",
+       "check": [
+        {
+         "t": "isdir",
+         "p": "~/backup/2026/nov"
+        },
+        {
+         "t": "cmd",
+         "re": "-p"
+        }
+       ],
+       "solution": "mkdir -p backup/2026/nov"
+      },
+      {
+       "goal": "Copy the whole shared/menu folder, files and all, into ~/backup/2026/nov.",
+       "hint": "Copying a folder needs cp -r.",
+       "check": [
+        {
+         "t": "exists",
+         "p": "~/backup/2026/nov/menu/summer.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/backup/2026/nov/menu/winter.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/shared/menu/summer.txt"
+        }
+       ],
+       "solution": "cp -r shared/menu backup/2026/nov"
+      },
+      {
+       "goal": "Remove shared/old-junk and everything inside it.",
+       "hint": "rm -r deletes a folder and its contents. Double-check the path first.",
+       "check": [
+        {
+         "t": "absent",
+         "p": "~/shared/old-junk"
+        },
+        {
+         "t": "exists",
+         "p": "~/shared/menu/winter.txt"
+        }
+       ],
+       "solution": "rm -r shared/old-junk"
+      },
+      {
+       "goal": "List ~/backup recursively to prove the menus arrived.",
+       "hint": "ls -R walks down through every subfolder.",
+       "check": [
+        {
+         "t": "out",
+         "re": "summer\\.txt"
+        },
+        {
+         "t": "cmd",
+         "re": "-\\w*R"
+        }
+       ],
+       "solution": "ls -R backup"
+      }
+     ],
+     "outro": "Menus safe, junk gone. You treat yourself to a slightly squashed iced bun."
+    }
+   ]
+  },
+  {
+   "id": "story.wed",
+   "title": "Wednesday: Plumbing Day",
+   "intro": "Midweek, and the manager discovers you can send output into files and pipe commands together. Requests start pouring in.",
+   "missions": [
+    {
+     "id": "story.wed.m1",
+     "title": "The Complaints Box",
+     "intro": "The bakery keeps its customer complaints in ~/desk. Your job: file things neatly, and keep error messages where they belong.",
+     "setup": {
+      "cwd": "~/desk",
+      "files": {
+       "~/desk/complaints.txt": "Too many crumbs on the counter.\nThe croissants sell out too fast.\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Save a listing of /etc into a file called etc-list.txt.",
+       "hint": "The > operator sends output into a file instead of the screen.",
+       "check": [
+        {
+         "t": "content",
+         "p": "~/desk/etc-list.txt",
+         "re": "^passwd$"
+        }
+       ],
+       "solution": "ls /etc > etc-list.txt"
+      },
+      {
+       "goal": "Add the line \"Reviewed by the new sysadmin\" to the end of complaints.txt, keeping what is already there.",
+       "hint": "One > replaces a file. Two of them, >>, add to the end.",
+       "check": [
+        {
+         "t": "content",
+         "p": "~/desk/complaints.txt",
+         "re": "^Too many crumbs"
+        },
+        {
+         "t": "content",
+         "p": "~/desk/complaints.txt",
+         "re": "too fast\\.\\nReviewed by the new sysadmin$"
+        }
+       ],
+       "solution": "echo \"Reviewed by the new sysadmin\" >> complaints.txt"
+      },
+      {
+       "goal": "List a folder called /missing (it does not exist) and catch the error message in errors.txt.",
+       "hint": "Errors travel on stream 2, so redirect with 2>",
+       "check": [
+        {
+         "t": "content",
+         "p": "~/desk/errors.txt",
+         "re": "No such file"
+        }
+       ],
+       "solution": "ls /missing 2> errors.txt"
+      },
+      {
+       "goal": "List both ~/desk and /missing, putting the normal output and the error together in all.txt.",
+       "hint": "&> redirects both streams into one file.",
+       "check": [
+        {
+         "t": "content",
+         "p": "~/desk/all.txt",
+         "re": "No such file"
+        },
+        {
+         "t": "content",
+         "p": "~/desk/all.txt",
+         "re": "complaints\\.txt"
+        }
+       ],
+       "solution": "ls ~/desk /missing &> all.txt"
+      },
+      {
+       "goal": "Run ls /root, but throw its error away so the screen stays clean.",
+       "hint": "/dev/null swallows anything you send it.",
+       "check": [
+        {
+         "t": "cmd",
+         "re": "2>\\s*/dev/null"
+        },
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])(?![\\s\\S])"
+        }
+       ],
+       "solution": "ls /root 2> /dev/null"
+      }
+     ],
+     "outro": "Output in files, errors in their own bin, and the unwanted ones gone for good. The complaints box is under control."
+    },
+    {
+     "id": "story.wed.m2",
+     "title": "The Till Roll",
+     "intro": "Every sale today was written to ~/desk/sales.txt, one item per line. The manager wants numbers, and wants them now.",
+     "setup": {
+      "cwd": "~/desk",
+      "files": {
+       "~/desk/sales.txt": "croissant\nbagel\ncroissant\nmuffin\nrye\nbagel\ncroissant\nmuffin\ncroissant\nrye\nbrownie\ncroissant\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Count how many sales are in sales.txt.",
+       "hint": "wc -l counts lines.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^\\s*12\\b"
+        },
+        {
+         "t": "cmd",
+         "re": "^wc\\b"
+        }
+       ],
+       "solution": "wc -l sales.txt"
+      },
+      {
+       "goal": "Show each item only once, in alphabetical order.",
+       "hint": "uniq only spots repeats that sit next to each other, so sort first and pipe into it.",
+       "check": [
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])bagel\\nbrownie\\ncroissant\\nmuffin\\nrye\\n?(?![\\s\\S])"
+        }
+       ],
+       "solution": "sort sales.txt | uniq"
+      },
+      {
+       "goal": "Count how many different items were sold today.",
+       "hint": "Add one more pipe on the end: | wc -l",
+       "check": [
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])\\s*5\\s*(?![\\s\\S])"
+        },
+        {
+         "t": "cmd",
+         "re": "\\|"
+        }
+       ],
+       "solution": "sort sales.txt | uniq | wc -l"
+      },
+      {
+       "goal": "Show only the last three sales of the day.",
+       "hint": "tail shows the end of a file, and -n sets how many lines.",
+       "check": [
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])rye\\nbrownie\\ncroissant\\n?(?![\\s\\S])"
+        }
+       ],
+       "solution": "tail -n 3 sales.txt"
+      },
+      {
+       "goal": "Save the one-of-each list into menu.txt while also seeing it on screen.",
+       "hint": "tee writes what it receives to a file and passes it on to the screen.",
+       "check": [
+        {
+         "t": "content",
+         "p": "~/desk/menu.txt",
+         "re": "(?<![\\s\\S])bagel\\nbrownie\\ncroissant\\nmuffin\\nrye\\n?(?![\\s\\S])"
+        },
+        {
+         "t": "out",
+         "re": "brownie"
+        },
+        {
+         "t": "cmd",
+         "re": "\\btee\\b"
+        }
+       ],
+       "solution": "sort sales.txt | uniq | tee menu.txt"
+      }
+     ],
+     "outro": "Twelve sales, five different items, and croissants winning by a mile. Someone should bake more croissants."
+    },
+    {
+     "id": "story.wed.m3",
+     "title": "Let the Shell Do the Typing",
+     "intro": "Next week's rota needs a folder per weekday and a pile of tray files. Typing it all out sounds dreadful, so let the shell expand things for you.",
+     "setup": {
+      "dirs": [
+       "~/rota"
+      ]
+     },
+     "steps": [
+      {
+       "goal": "Create folders mon, tue, wed, thu and fri inside ~/rota with one command.",
+       "hint": "Brace expansion: rota/{mon,tue,...}",
+       "check": [
+        {
+         "t": "isdir",
+         "p": "~/rota/mon"
+        },
+        {
+         "t": "isdir",
+         "p": "~/rota/tue"
+        },
+        {
+         "t": "isdir",
+         "p": "~/rota/wed"
+        },
+        {
+         "t": "isdir",
+         "p": "~/rota/thu"
+        },
+        {
+         "t": "isdir",
+         "p": "~/rota/fri"
+        },
+        {
+         "t": "cmd",
+         "re": "\\{"
+        }
+       ],
+       "solution": "mkdir rota/{mon,tue,wed,thu,fri}"
+      },
+      {
+       "goal": "Create empty files tray01.txt through tray05.txt in ~/rota/mon using a brace sequence.",
+       "hint": "touch with {01..05} keeps the leading zero.",
+       "check": [
+        {
+         "t": "exists",
+         "p": "~/rota/mon/tray01.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/rota/mon/tray03.txt"
+        },
+        {
+         "t": "exists",
+         "p": "~/rota/mon/tray05.txt"
+        },
+        {
+         "t": "cmd",
+         "re": "\\{"
+        }
+       ],
+       "solution": "touch rota/mon/tray{01..05}.txt"
+      },
+      {
+       "goal": "Let the shell work out how many croissants fit on 7 trays of 12.",
+       "hint": "Arithmetic expansion looks like $((...)) inside an echo.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^84$"
+        },
+        {
+         "t": "cmd",
+         "re": "\\$\\(\\("
+        }
+       ],
+       "solution": "echo $((7*12))"
+      },
+      {
+       "goal": "Print \"Shift starts:\" followed by today's date, using command substitution.",
+       "hint": "Put a command inside $( ) and its output lands in the line.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^Shift starts: \\w{3} \\w{3} +\\d"
+        },
+        {
+         "t": "cmd",
+         "re": "\\$\\(date\\)|`date`"
+        }
+       ],
+       "solution": "echo \"Shift starts: $(date)\""
+      },
+      {
+       "goal": "Print the exact text $HOME, dollar sign and all, without it turning into your home path.",
+       "hint": "Single quotes stop every kind of expansion.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^\\$HOME$"
+        }
+       ],
+       "solution": "echo '$HOME'"
+      }
+     ],
+     "outro": "Five folders, five trays, one sum and a date, all without much typing. The shell is starting to feel like a helpful assistant."
+    }
+   ]
+  },
+  {
+   "id": "story.thu",
+   "title": "Thursday: Locks and Lost Things",
+   "intro": "Permissions are a mess and the archive is a jungle. Today you learn who may touch what, and how to find anything.",
+   "missions": [
+    {
+     "id": "story.thu.m1",
+     "title": "The Locked Recipe Binder",
+     "intro": "The head baker locked the recipe binder so tightly that even she cannot open it. You own every file in there, so you can fix it.",
+     "setup": {
+      "cwd": "~/binder",
+      "files": {
+       "~/binder/secret-recipe.txt": {
+        "data": "Secret: a pinch of cardamom in the cinnamon buns.\n",
+        "mode": "000"
+       },
+       "~/binder/open-me.sh": {
+        "data": "echo \"oven on\"\n",
+        "mode": "644"
+       },
+       "~/binder/vault/flour-ratio.txt": "3 parts flour to 2 parts water\n"
+      },
+      "modes": {
+       "~/binder/vault": "000"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Long-list the binder and look at the permission strings.",
+       "hint": "ls -l shows them in the first column.",
+       "check": [
+        {
+         "t": "out",
+         "re": "----------"
+        },
+        {
+         "t": "cmd",
+         "re": "^ls\\b.*-\\w*l"
+        }
+       ],
+       "solution": "ls -l"
+      },
+      {
+       "goal": "Give the owner (you) read and write on secret-recipe.txt, and give nobody else anything.",
+       "hint": "In octal, read is 4 and write is 2, so owner rw- is 6.",
+       "check": [
+        {
+         "t": "mode",
+         "p": "~/binder/secret-recipe.txt",
+         "mode": "600"
+        }
+       ],
+       "solution": "chmod 600 secret-recipe.txt"
+      },
+      {
+       "goal": "Read the secret recipe.",
+       "hint": "Now cat is allowed in.",
+       "check": [
+        {
+         "t": "out",
+         "re": "cardamom"
+        }
+       ],
+       "solution": "cat secret-recipe.txt"
+      },
+      {
+       "goal": "Set open-me.sh to rwxr-xr-x.",
+       "hint": "rwx is 7 and r-x is 5.",
+       "check": [
+        {
+         "t": "mode",
+         "p": "~/binder/open-me.sh",
+         "mode": "755"
+        }
+       ],
+       "solution": "chmod 755 open-me.sh"
+      },
+      {
+       "goal": "Unlock the vault folder for yourself only (rwx------), then list what is inside.",
+       "hint": "A folder needs r to be listed and x to be entered. 700 gives you both.",
+       "check": [
+        {
+         "t": "mode",
+         "p": "~/binder/vault",
+         "mode": "700"
+        },
+        {
+         "t": "out",
+         "re": "flour-ratio\\.txt"
+        }
+       ],
+       "solution": [
+        "chmod 700 vault",
+        "ls vault"
+       ]
+      }
+     ],
+     "outro": "Binder unlocked, script runnable, vault open. The head baker owes you a bun, and you know the secret ingredient now."
+    },
+    {
+     "id": "story.thu.m2",
+     "title": "Into the Archive",
+     "intro": "Years of bakery paperwork live in ~/archive, nested in folders nobody has opened for ages. The find command is your torch.",
+     "setup": {
+      "dirs": [
+       "~/archive/2025/q2"
+      ],
+      "files": {
+       "~/archive/readme.txt": "Archive. Please do not feed the files.\n",
+       "~/archive/2024/jan/sales.log": "jan: 400 loaves\n",
+       "~/archive/2024/feb/sales.log": "feb: 380 loaves\n",
+       "~/archive/2025/notes.txt": "New oven ordered.\n",
+       "~/archive/2025/empty-a.txt": "",
+       "~/archive/2025/q1/draft.txt": "",
+       "~/archive/2025/q1/plan.txt": "Plan: more croissants.\n",
+       "~/archive/scans/photo-dump.txt": "pixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\npixel 0 lorem crumbs\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Find every file ending in .log anywhere under ~/archive.",
+       "hint": "find archive -name with the pattern in quotes, so the shell leaves it alone.",
+       "check": [
+        {
+         "t": "out",
+         "re": "2024/jan/sales\\.log"
+        },
+        {
+         "t": "out",
+         "re": "2024/feb/sales\\.log"
+        },
+        {
+         "t": "cmd",
+         "re": "^find\\b"
+        }
+       ],
+       "solution": "find archive -name '*.log'"
+      },
+      {
+       "goal": "Find the empty files under ~/archive, but not empty folders.",
+       "hint": "-empty matches both, so add -type f.",
+       "check": [
+        {
+         "t": "out",
+         "re": "empty-a\\.txt"
+        },
+        {
+         "t": "out",
+         "re": "q1/draft\\.txt"
+        },
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])(?![\\s\\S]*q2)"
+        },
+        {
+         "t": "cmd",
+         "re": "^find\\b"
+        }
+       ],
+       "solution": "find archive -type f -empty"
+      },
+      {
+       "goal": "Find files bigger than 2 kilobytes.",
+       "hint": "-size +2k means more than 2 kilobytes.",
+       "check": [
+        {
+         "t": "out",
+         "re": "photo-dump\\.txt"
+        },
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])(?![\\s\\S]*readme)"
+        },
+        {
+         "t": "cmd",
+         "re": "^find\\b.*-size"
+        }
+       ],
+       "solution": "find archive -type f -size +2k"
+      },
+      {
+       "goal": "Delete those empty files, letting find do the deleting.",
+       "hint": "Add -delete to the end of the search you already tested. The empty folder q2 must stay.",
+       "check": [
+        {
+         "t": "absent",
+         "p": "~/archive/2025/empty-a.txt"
+        },
+        {
+         "t": "absent",
+         "p": "~/archive/2025/q1/draft.txt"
+        },
+        {
+         "t": "isdir",
+         "p": "~/archive/2025/q2"
+        },
+        {
+         "t": "exists",
+         "p": "~/archive/2025/q1/plan.txt"
+        }
+       ],
+       "solution": "find archive -type f -empty -delete"
+      },
+      {
+       "goal": "Count how many .txt files are left under ~/archive.",
+       "hint": "Pipe the find into wc -l.",
+       "check": [
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])\\s*4\\s*(?![\\s\\S])"
+        },
+        {
+         "t": "cmd",
+         "re": "^find\\b.*\\|\\s*wc"
+        }
+       ],
+       "solution": "find archive -name '*.txt' | wc -l"
+      }
+     ],
+     "outro": "Logs located, empties cleared, big scans spotted. The archive is slightly less of a jungle."
+    },
+    {
+     "id": "story.thu.m3",
+     "title": "Shared Drive Manners",
+     "intro": "Anyone can scribble on the price list right now, and the deploy script refuses to run. Fix both with symbolic chmod, touching only the bits that need it.",
+     "setup": {
+      "files": {
+       "~/shared/prices.txt": {
+        "data": "croissant 2.20\nrye loaf 4.50\n",
+        "mode": "666"
+       },
+       "~/shared/deploy.sh": {
+        "data": "echo \"updating the menu board\"\n",
+        "mode": "644"
+       }
+      }
+     },
+     "steps": [
+      {
+       "goal": "Show your current umask, the mask that trims permissions on new files.",
+       "hint": "Just type umask.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^0002$"
+        }
+       ],
+       "solution": "umask"
+      },
+      {
+       "goal": "Take write permission away from group and others on shared/prices.txt, using symbolic notation.",
+       "hint": "Who (g, o), then - , then what (w).",
+       "check": [
+        {
+         "t": "mode",
+         "p": "~/shared/prices.txt",
+         "mode": "644"
+        },
+        {
+         "t": "cmd",
+         "re": "chmod\\s+[ugoa,]*[-=]"
+        }
+       ],
+       "solution": "chmod go-w shared/prices.txt"
+      },
+      {
+       "goal": "Make shared/deploy.sh executable for everyone without changing any other bit.",
+       "hint": "a stands for all; +x adds execute.",
+       "check": [
+        {
+         "t": "mode",
+         "p": "~/shared/deploy.sh",
+         "mode": "755"
+        },
+        {
+         "t": "cmd",
+         "re": "chmod\\s+[ugoa]*\\+x"
+        }
+       ],
+       "solution": "chmod a+x shared/deploy.sh"
+      },
+      {
+       "goal": "Long-list the shared folder to admire your work.",
+       "hint": "ls -l shared",
+       "check": [
+        {
+         "t": "out",
+         "re": "-rwxr-xr-x.*deploy\\.sh"
+        },
+        {
+         "t": "out",
+         "re": "-rw-r--r--.*prices\\.txt"
+        }
+       ],
+       "solution": "ls -l shared"
+      }
+     ],
+     "outro": "Price list protected, script runnable. Nobody will sneak a 0.01 price onto the cakes again."
+    }
+   ]
+  },
+  {
+   "id": "story.fri",
+   "title": "Friday: Data Crunching",
+   "intro": "End of the week. The manager wants reports, and the raw material is plain text. Time for grep, cut, sort, uniq, tr and wc.",
+   "missions": [
+    {
+     "id": "story.fri.m1",
+     "title": "Who Orders the Most?",
+     "intro": "This morning's orders sit in ~/logs/orders.csv as time,customer,item,quantity. The manager wants to know a few things before the weekend.",
+     "setup": {
+      "cwd": "~/logs",
+      "files": {
+       "~/logs/orders.csv": "09:01,pip,croissant,2\n09:05,juno,Rye loaf,1\n09:12,pip,bagel,3\n09:20,ash,rye roll,4\n09:31,pip,croissant,1\n09:40,juno,muffin,2\n09:44,mo,RYE LOAF,1\n09:52,pip,brownie,2\n10:03,ash,croissant,6\n10:10,juno,bagel,1\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Show every order that mentions rye, whatever the letter case.",
+       "hint": "grep -i ignores upper and lower case.",
+       "check": [
+        {
+         "t": "out",
+         "re": "Rye loaf"
+        },
+        {
+         "t": "out",
+         "re": "rye roll"
+        },
+        {
+         "t": "out",
+         "re": "RYE LOAF"
+        },
+        {
+         "t": "cmd",
+         "re": "-\\w*i"
+        }
+       ],
+       "solution": "grep -i rye orders.csv"
+      },
+      {
+       "goal": "Count the orders that do NOT mention croissant.",
+       "hint": "grep -v inverts the match and -c counts the lines.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^\\s*7\\s*$"
+        },
+        {
+         "t": "cmd",
+         "re": "-\\w*v"
+        }
+       ],
+       "solution": "grep -vc croissant orders.csv"
+      },
+      {
+       "goal": "Print just the customer names, which are the second comma-separated field.",
+       "hint": "cut -d sets the separator and -f picks the field.",
+       "check": [
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])pip\\njuno\\npip\\nash\\npip\\njuno\\nmo\\npip\\nash\\njuno\\n?(?![\\s\\S])"
+        }
+       ],
+       "solution": "cut -d, -f2 orders.csv"
+      },
+      {
+       "goal": "Find the busiest customer: count orders per name, most first, and show only the top line.",
+       "hint": "cut, then sort | uniq -c, then sort -rn, then head -1.",
+       "check": [
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])\\s*4 pip\\s*(?![\\s\\S])"
+        }
+       ],
+       "solution": "cut -d, -f2 orders.csv | sort | uniq -c | sort -rn | head -1"
+      }
+     ],
+     "outro": "Pip wins with four orders before ten in the morning. Pip gets a loyalty card."
+    },
+    {
+     "id": "story.fri.m2",
+     "title": "Fixing the Signs",
+     "intro": "The shop signs in ~/signs came out wrong: too quiet, too spaced out, and one has digits sprinkled through it. tr can repair all of them.",
+     "setup": {
+      "cwd": "~/signs",
+      "files": {
+       "~/signs/sign.txt": "fresh bread daily\nno dogs except good ones\n",
+       "~/signs/spaced.txt": "open    from   7    till    late\n",
+       "~/signs/code.txt": "c4a6r2d1a9m0o8m\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Write an all-capitals copy of sign.txt into LOUD.txt.",
+       "hint": "tr a-z A-Z, reading from sign.txt with < and writing with >.",
+       "check": [
+        {
+         "t": "content",
+         "p": "~/signs/LOUD.txt",
+         "re": "(?<![\\s\\S])FRESH BREAD DAILY\\nNO DOGS EXCEPT GOOD ONES\\n?(?![\\s\\S])"
+        }
+       ],
+       "solution": "tr a-z A-Z < sign.txt > LOUD.txt"
+      },
+      {
+       "goal": "Show spaced.txt with every run of spaces squeezed down to one.",
+       "hint": "tr -s squeezes repeated characters.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^open from 7 till late$"
+        }
+       ],
+       "solution": "tr -s ' ' < spaced.txt"
+      },
+      {
+       "goal": "Delete every digit from code.txt to reveal the hidden word.",
+       "hint": "tr -d deletes the characters you list, and 0-9 covers all digits.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^cardamom$"
+        }
+       ],
+       "solution": "tr -d 0-9 < code.txt"
+      },
+      {
+       "goal": "Count the words on sign.txt.",
+       "hint": "wc -w counts words.",
+       "check": [
+        {
+         "t": "out",
+         "re": "^\\s*8\\b"
+        },
+        {
+         "t": "cmd",
+         "re": "^wc\\b.*-\\w*w"
+        }
+       ],
+       "solution": "wc -w sign.txt"
+      }
+     ],
+     "outro": "The signs are loud, tidy and digit-free. The hidden word was cardamom again. Someone here really loves cardamom."
+    },
+    {
+     "id": "story.fri.m3",
+     "title": "Weekend Rota",
+     "intro": "Last job of the week: sort out prices, sign-ups and notes in ~/staff before everyone heads home.",
+     "setup": {
+      "cwd": "~/staff",
+      "files": {
+       "~/staff/prices.txt": "rye:4.5\ncroissant:2\nbaguette:3\ncake:12\nbun:1.5\n",
+       "~/staff/signups.txt": "ash\njuno\npip\nash\nmo\njuno\nbea\nash\n",
+       "~/staff/notes/mon.txt": "Oven 2 is running hot again.\n",
+       "~/staff/notes/tue.txt": "Out of napkins.\n",
+       "~/staff/notes/thu.txt": "Cleaned the oven, finally.\n"
+      }
+     },
+     "steps": [
+      {
+       "goal": "Sort prices.txt cheapest first. The price is the second field after a colon.",
+       "hint": "sort -t sets the separator, -k picks the field and -n compares numbers.",
+       "check": [
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])bun:1\\.5\\ncroissant:2\\nbaguette:3\\nrye:4\\.5\\ncake:12\\n?(?![\\s\\S])"
+        }
+       ],
+       "solution": "sort -t: -k2 -n prices.txt"
+      },
+      {
+       "goal": "Show the names that signed up more than once.",
+       "hint": "Sort first, then uniq -d prints only the repeated lines.",
+       "check": [
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])ash\\njuno\\n?(?![\\s\\S])"
+        }
+       ],
+       "solution": "sort signups.txt | uniq -d"
+      },
+      {
+       "goal": "Which notes mention the oven? List only the file names.",
+       "hint": "grep -il prints just the names of matching files. Watch the capital O.",
+       "check": [
+        {
+         "t": "out",
+         "re": "mon\\.txt"
+        },
+        {
+         "t": "out",
+         "re": "thu\\.txt"
+        },
+        {
+         "t": "out",
+         "re": "(?<![\\s\\S])(?![\\s\\S]*tue)"
+        }
+       ],
+       "solution": "grep -il oven notes/*"
+      }
+     ],
+     "outro": "Prices sorted, double sign-ups spotted, oven notes found. That is the week done. Enjoy the weekend, sysadmin!"
+    }
+   ]
+  }
+ ],
+ "rooms": [
+  {
+   "id": "room.pantry",
+   "title": "The Pantry",
+   "difficulty": 1,
+   "intro": "The pantry door swung shut behind you and the keypad wants four digits. The room looks almost empty, but whoever set this up loved hiding things. Escape by writing the code to ~/escape/answer.txt.",
+   "setup": {
+    "cwd": "~/escape",
+    "files": {
+     "~/escape/door.txt": "KEYPAD: four digits.\nThe builder of this pantry hid things the Linux way: behind a dot.\n",
+     "~/escape/shelf/jam.txt": "Strawberry. Delicious. Not a clue.\n",
+     "~/escape/shelf/.label": "First half of the code: 58\nThe second half fell down behind the shelf.\n",
+     "~/escape/.old-note": "The old code was 1234. We changed it, obviously.\n",
+     "~/escape/.behind-the-shelf/dust.txt": "Just dust. Keep looking.\n",
+     "~/escape/.behind-the-shelf/.cobweb/.spider": "You found me! Second half of the code: 26\n"
+    }
+   },
+   "hints": [
+    "Plain ls skips anything whose name starts with a dot. Try ls -a in every folder you visit.",
+    "The shelf folder has a hidden label, and the room itself hides a folder you can cd into.",
+    "Read shelf/.label, then cd .behind-the-shelf and keep using ls -a until a spider turns up. Join both halves."
+   ],
+   "check": [
+    {
+     "t": "content",
+     "p": "~/escape/answer.txt",
+     "re": "^5826$"
+    }
+   ],
+   "solution": [
+    "ls -a",
+    "cat door.txt",
+    "ls -a shelf",
+    "cat shelf/.label",
+    "cd .behind-the-shelf",
+    "ls -a",
+    "cd .cobweb",
+    "ls -a",
+    "cat .spider",
+    "echo 5826 > ~/escape/answer.txt"
+   ],
+   "outro": "Beep beep, click. The pantry door opens. Dotfiles: hidden, never gone."
+  },
+  {
+   "id": "room.office",
+   "title": "The Head Baker's Office",
+   "difficulty": 2,
+   "intro": "You are locked in the head baker's office with a safe that wants a number. Everything useful is locked up, but every file in here belongs to you. Write the safe number to ~/escape/answer.txt to get out.",
+   "setup": {
+    "cwd": "~/escape",
+    "files": {
+     "~/escape/office/sticky.txt": "Gone to the market.\nThe drawer is locked, but you own it, so that should not stop you.\n",
+     "~/escape/office/drawer/letter.txt": {
+      "data": "Well done, you got in.\nThe safe opens to the permission number, in octal, of the file called dial.\nr is 4, w is 2, x is 1. Add them up for owner, group and others.\n",
+      "mode": "000"
+     },
+     "~/escape/office/dial": {
+      "data": "click... click... click...\n",
+      "mode": "754"
+     },
+     "~/escape/office/old-dial": {
+      "data": "This dial was replaced last year.\n",
+      "mode": "640"
+     },
+     "~/escape/office/READ-ME-NOT": {
+      "data": "Told you. Nothing useful here.\n",
+      "mode": "000"
+     }
+    },
+    "modes": {
+     "~/escape/office/drawer": "000"
+    }
+   },
+   "hints": [
+    "ls -l office shows each file's permissions. Notice which things nobody, not even you, may read.",
+    "You own the drawer, so chmod can give you rwx on it (700). Then the letter inside needs read permission too.",
+    "After chmod 700 office/drawer and chmod 600 office/drawer/letter.txt, read the letter. Turn dial's permission string into three octal digits."
+   ],
+   "check": [
+    {
+     "t": "content",
+     "p": "~/escape/answer.txt",
+     "re": "^754$"
+    }
+   ],
+   "solution": [
+    "ls -l office",
+    "cat office/sticky.txt",
+    "chmod 700 office/drawer",
+    "ls -l office/drawer",
+    "chmod 600 office/drawer/letter.txt",
+    "cat office/drawer/letter.txt",
+    "ls -l office/dial",
+    "echo 754 > answer.txt"
+   ],
+   "outro": "rwxr-xr-- is 7, 5, 4. The safe swings open. Octal never felt so rewarding."
+  },
+  {
+   "id": "room.logmaze",
+   "title": "The Log Maze",
+   "difficulty": 3,
+   "intro": "The night guard will not let you leave without the week's password, and the password is buried in the login logs. Read the guard's note, dig through the logs, and write the password to ~/escape/answer.txt.",
+   "setup": {
+    "cwd": "~/escape",
+    "files": {
+     "~/escape/guard.txt": "Halt! Password please.\nIt is the username that FAILED to log in most often this week,\nfollowed straight away by how many times it failed. No space.\nThis week means the logs in logs/ itself. The old folder is last week.\n",
+     "~/escape/logs/mon.log": "07:07 LOGIN FAILED user=pretzel\n07:14 LOGIN OK user=toast\n07:21 LOGIN OK user=crumb\n07:28 LOGIN FAILED user=pretzel\n07:35 LOGIN OK user=toast\n07:42 LOGIN OK user=crumb\n07:49 LOGIN OK user=toast\n07:56 LOGIN FAILED user=toast\n08:03 LOGIN OK user=bagel\n08:10 LOGIN FAILED user=pretzel\n08:17 LOGIN FAILED user=toast\n08:24 LOGIN OK user=bagel\n08:31 LOGIN OK user=crumb\n08:38 LOGIN OK user=toast\n",
+     "~/escape/logs/tue.log": "07:07 LOGIN OK user=crumb\n07:14 LOGIN OK user=crumb\n07:21 LOGIN OK user=toast\n07:28 LOGIN FAILED user=pretzel\n07:35 LOGIN OK user=toast\n07:42 LOGIN OK user=pretzel\n07:49 LOGIN FAILED user=bagel\n07:56 LOGIN FAILED user=pretzel\n08:03 LOGIN FAILED user=bagel\n08:10 LOGIN FAILED user=toast\n08:17 LOGIN OK user=toast\n08:24 LOGIN FAILED user=toast\n08:31 LOGIN OK user=crumb\n",
+     "~/escape/logs/wed.log": "07:07 LOGIN OK user=toast\n07:14 LOGIN FAILED user=pretzel\n07:21 LOGIN FAILED user=pretzel\n07:28 LOGIN OK user=bagel\n07:35 LOGIN OK user=pretzel\n07:42 LOGIN FAILED user=bagel\n07:49 LOGIN OK user=bagel\n07:56 LOGIN FAILED user=toast\n08:03 LOGIN OK user=crumb\n08:10 LOGIN OK user=toast\n08:17 LOGIN OK user=crumb\n",
+     "~/escape/logs/old/sun.log": "07:07 LOGIN FAILED user=toast\n07:14 LOGIN FAILED user=toast\n07:21 LOGIN OK user=crumb\n07:28 LOGIN FAILED user=toast\n07:35 LOGIN FAILED user=toast\n07:42 LOGIN FAILED user=toast\n07:49 LOGIN FAILED user=toast\n07:56 LOGIN OK user=crumb\n"
+    }
+   },
+   "hints": [
+    "Read guard.txt, then peek at a log with head to see what one line looks like.",
+    "grep FAILED on logs/*.log keeps only the failures, and -h drops the file names. cut -d= -f2 leaves just the user.",
+    "Pipe that into sort | uniq -c | sort -rn | head -1. Then write the name and the count together into answer.txt."
+   ],
+   "check": [
+    {
+     "t": "content",
+     "p": "~/escape/answer.txt",
+     "re": "^pretzel7$"
+    }
+   ],
+   "solution": [
+    "cat guard.txt",
+    "head -3 logs/mon.log",
+    "grep -h FAILED logs/*.log | cut -d= -f2 | sort | uniq -c | sort -rn | head -1",
+    "echo pretzel7 > answer.txt"
+   ],
+   "outro": "The guard squints, nods and opens the gate. Toast logged in most, but pretzel kept forgetting its password."
+  },
+  {
+   "id": "room.archive",
+   "title": "The Lost Archive",
+   "difficulty": 4,
+   "intro": "The archivist vanished and left the vault sealed. The way out is a two-part password hidden somewhere in a sprawling archive folder. Start with START.txt, then write the password to ~/escape/answer.txt.",
+   "setup": {
+    "cwd": "~/escape",
+    "dirs": [
+     "~/escape/archive/1993/blank",
+     "~/escape/archive/2019/nothing"
+    ],
+    "files": {
+     "~/escape/START.txt": "Three notes from the archivist:\n1. The password begins with the name of the only EMPTY file in archive. Folders do not count.\n2. The only file in archive bigger than 4 kilobytes has a line starting with KEY.\n   Its third colon-separated field is the rest of the password, scrambled with ROT13.\n3. Join the two parts with a dash, like first-second.\n",
+     "~/escape/archive/1987/ledger.txt": "ledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nledger entry 0 lorem crumbs\nKEY:ledger:pnaqyr\n",
+     "~/escape/archive/1987/index.txt": "KEY:index:zbgu\n",
+     "~/escape/archive/1993/letters/to-baker.txt": "Dear baker, the rye was excellent.\n",
+     "~/escape/archive/1993/letters/almost-empty.txt": "\n",
+     "~/escape/archive/2001/scan-0042.dat": "scan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nKEY:archivist:ynagrea\nscan tail 0 lorem crumbs\nscan tail 4 lorem crumbs\nscan tail 1 lorem crumbs\nscan tail 5 lorem crumbs\nscan tail 2 lorem crumbs\nscan tail 6 lorem crumbs\nscan tail 3 lorem crumbs\nscan tail 0 lorem crumbs\nscan tail 4 lorem crumbs\nscan tail 1 lorem crumbs\nscan tail 5 lorem crumbs\nscan tail 2 lorem crumbs\n",
+     "~/escape/archive/2001/scan-0041.dat": "scan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\nscan noise 3 lorem crumbs\nscan noise 1 lorem crumbs\nscan noise 6 lorem crumbs\nscan noise 4 lorem crumbs\nscan noise 2 lorem crumbs\nscan noise 0 lorem crumbs\nscan noise 5 lorem crumbs\n",
+     "~/escape/archive/2019/photos/oven.txt": "A photo of an oven, described in words.\n",
+     "~/escape/archive/misc/boxes/old/receipt.txt": "KEY:receipt:fcbba\n",
+     "~/escape/archive/misc/attic/owl": "",
+     "~/escape/archive/misc/attic/hay.txt": "hay hay hay\n"
+    }
+   },
+   "hints": [
+    "find can test what a file is (-type f), whether it is empty (-empty) and how big it is (-size).",
+    "find archive -type f -empty gives part one. find archive -type f -size +4k points at the big file.",
+    "grep KEY in that big file, cut -d: -f3, then pipe it through tr a-zA-Z n-za-mN-ZA-M to undo ROT13."
+   ],
+   "check": [
+    {
+     "t": "content",
+     "p": "~/escape/answer.txt",
+     "re": "^owl-lantern$"
+    }
+   ],
+   "solution": [
+    "cat START.txt",
+    "find archive -type f -empty",
+    "find archive -type f -size +4k",
+    "grep KEY archive/2001/scan-0042.dat | cut -d: -f3 | tr a-zA-Z n-za-mN-ZA-M",
+    "echo owl-lantern > answer.txt"
+   ],
+   "outro": "owl-lantern. The vault hums open. Somewhere, an archivist smiles."
+  }
+ ],
+ "golf": [
+  {
+   "id": "golf.01",
+   "title": "A Week of Folders",
+   "goal": "Inside ~/playground, create the folders day1 through day7.",
+   "setup": {
+    "cwd": "~/playground"
+   },
+   "check": [
+    {
+     "t": "isdir",
+     "p": "~/playground/day1"
+    },
+    {
+     "t": "isdir",
+     "p": "~/playground/day2"
+    },
+    {
+     "t": "isdir",
+     "p": "~/playground/day3"
+    },
+    {
+     "t": "isdir",
+     "p": "~/playground/day4"
+    },
+    {
+     "t": "isdir",
+     "p": "~/playground/day5"
+    },
+    {
+     "t": "isdir",
+     "p": "~/playground/day6"
+    },
+    {
+     "t": "isdir",
+     "p": "~/playground/day7"
+    }
+   ],
+   "par": "mkdir day{1..7}",
+   "tip": "A brace sequence like {1..7} expands into seven words before mkdir even runs."
+  },
+  {
+   "id": "golf.02",
+   "title": "Deep Dish",
+   "goal": "Inside ~/playground, create the nested path pie/crust/layer/filling.",
+   "setup": {
+    "cwd": "~/playground"
+   },
+   "check": [
+    {
+     "t": "isdir",
+     "p": "~/playground/pie/crust/layer/filling"
+    }
+   ],
+   "par": "mkdir -p pie/crust/layer/filling",
+   "tip": "mkdir -p creates every missing parent on the way down, so one command builds the whole chain."
+  },
+  {
+   "id": "golf.03",
+   "title": "Rounding Up the JPEGs",
+   "goal": "Move every .jpg file in ~/playground into the photos folder. Everything else stays put.",
+   "setup": {
+    "cwd": "~/playground",
+    "dirs": [
+     "~/playground/photos"
+    ],
+    "files": {
+     "~/playground/a.jpg": "pic\n",
+     "~/playground/b.jpg": "pic\n",
+     "~/playground/c.jpg": "pic\n",
+     "~/playground/d.jpg": "pic\n",
+     "~/playground/e.jpg": "pic\n",
+     "~/playground/f.jpg": "pic\n",
+     "~/playground/logo.png": "png\n",
+     "~/playground/jam.txt": "jam\n",
+     "~/playground/jpg-notes.txt": "notes about jpgs\n"
+    }
+   },
+   "check": [
+    {
+     "t": "exists",
+     "p": "~/playground/photos/a.jpg"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/photos/b.jpg"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/photos/c.jpg"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/photos/d.jpg"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/photos/e.jpg"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/photos/f.jpg"
+    },
+    {
+     "t": "absent",
+     "p": "~/playground/a.jpg"
+    },
+    {
+     "t": "absent",
+     "p": "~/playground/f.jpg"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/logo.png"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/jam.txt"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/jpg-notes.txt"
+    }
+   ],
+   "par": "mv *.jpg photos",
+   "tip": "One wildcard picks out a whole family of files. Six names typed once each would cost far more strokes."
+  },
+  {
+   "id": "golf.04",
+   "title": "Long Way From Home",
+   "goal": "You are deep in ~/playground/x/y/z. Copy notes.txt from your home folder into the folder you are in.",
+   "setup": {
+    "cwd": "~/playground/x/y/z",
+    "dirs": [
+     "~/playground/x/y/z"
+    ]
+   },
+   "check": [
+    {
+     "t": "exists",
+     "p": "~/playground/x/y/z/notes.txt"
+    },
+    {
+     "t": "exists",
+     "p": "~/notes.txt"
+    }
+   ],
+   "par": "cp ~/notes.txt .",
+   "tip": "~ means your home folder from anywhere, and a single dot means right here. (And plain cd takes you home.)"
+  },
+  {
+   "id": "golf.05",
+   "title": "One More Thing",
+   "goal": "Add the line eggs to the end of ~/Documents/todo.txt, keeping the three lines already there.",
+   "setup": {
+    "cwd": "~/Documents"
+   },
+   "check": [
+    {
+     "t": "content",
+     "p": "~/Documents/todo.txt",
+     "re": "(?<![\\s\\S])buy milk\\nfix bike\\ncall home\\neggs\\n?(?![\\s\\S])"
+    }
+   ],
+   "par": "echo eggs >> todo.txt",
+   "tip": ">> appends. A single > would have wiped the list and left only eggs."
+  },
+  {
+   "id": "golf.06",
+   "title": "Fruit Salad",
+   "goal": "Save each fruit from ~/fruits.txt exactly once, in alphabetical order, into ~/salad.txt.",
+   "check": [
+    {
+     "t": "content",
+     "p": "~/salad.txt",
+     "re": "(?<![\\s\\S])apple\\nbanana\\ncherry\\ndate\\n?(?![\\s\\S])"
+    }
+   ],
+   "par": "sort -u fruits.txt > salad.txt",
+   "tip": "sort -u sorts and drops duplicates in one go, so no need for a separate uniq."
+  },
+  {
+   "id": "golf.07",
+   "title": "Just the Shifts",
+   "goal": "Write only the third column (shift) of ~/staff.csv, header included, into ~/shifts.txt.",
+   "setup": {
+    "files": {
+     "~/staff.csv": "name,role,shift\nash,baker,early\njuno,cashier,late\npip,baker,early\nmo,driver,night\nbea,cashier,early\ncy,baker,late\nkit,cleaner,night\ndot,baker,early\n"
+    }
+   },
+   "check": [
+    {
+     "t": "content",
+     "p": "~/shifts.txt",
+     "re": "(?<![\\s\\S])shift\\nearly\\nlate\\nearly\\nnight\\nearly\\nlate\\nnight\\nearly\\n?(?![\\s\\S])"
+    }
+   ],
+   "par": "cut -d, -f3 staff.csv > shifts.txt",
+   "tip": "cut -d picks the separator and -f the field number. Perfect for comma-separated files."
+  },
+  {
+   "id": "golf.08",
+   "title": "Shout It",
+   "goal": "Write an ALL-CAPS copy of ~/notes.txt into ~/LOUD.txt.",
+   "check": [
+    {
+     "t": "content",
+     "p": "~/LOUD.txt",
+     "re": "(?<![\\s\\S])LINUX IS FUN\\nTHE SHELL IS A PROGRAM\\nLS LISTS FILES\\nMY NOTES END HERE\\n?(?![\\s\\S])"
+    }
+   ],
+   "par": "tr a-z A-Z < notes.txt > LOUD.txt",
+   "tip": "tr only reads standard input, so feed it with < and catch its output with >."
+  },
+  {
+   "id": "golf.09",
+   "title": "Top Three",
+   "goal": "Save the first three lines of ~/distros.txt into ~/top3.txt.",
+   "check": [
+    {
+     "t": "content",
+     "p": "~/top3.txt",
+     "re": "(?<![\\s\\S])SUSE\t10\\.2\t12/07/2006\\nFedora\t10\t11/25/2008\\nSUSE\t11\\.0\t06/19/2008\\n?(?![\\s\\S])"
+    }
+   ],
+   "par": "head -3 distros.txt > top3.txt",
+   "tip": "head -n 3 and the short form head -3 both stop after three lines."
+  },
+  {
+   "id": "golf.10",
+   "title": "Temp Sweep",
+   "goal": "Delete every file ending in .tmp anywhere under ~/playground, at any depth. Nothing else may go.",
+   "setup": {
+    "cwd": "~/playground",
+    "files": {
+     "~/playground/a.tmp": "x\n",
+     "~/playground/keep.txt": "keep\n",
+     "~/playground/x/b.tmp": "x\n",
+     "~/playground/x/keep.tmp.txt": "keep\n",
+     "~/playground/x/y/c.tmp": "x\n",
+     "~/playground/x/y/notes.txt": "keep\n",
+     "~/playground/x/y/z/d.tmp": "x\n",
+     "~/playground/x/y/z/w/e.tmp": "x\n"
+    }
+   },
+   "check": [
+    {
+     "t": "absent",
+     "p": "~/playground/a.tmp"
+    },
+    {
+     "t": "absent",
+     "p": "~/playground/x/b.tmp"
+    },
+    {
+     "t": "absent",
+     "p": "~/playground/x/y/c.tmp"
+    },
+    {
+     "t": "absent",
+     "p": "~/playground/x/y/z/d.tmp"
+    },
+    {
+     "t": "absent",
+     "p": "~/playground/x/y/z/w/e.tmp"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/keep.txt"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/x/keep.tmp.txt"
+    },
+    {
+     "t": "exists",
+     "p": "~/playground/x/y/notes.txt"
+    },
+    {
+     "t": "isdir",
+     "p": "~/playground/x/y/z/w"
+    }
+   ],
+   "par": "find . -name '*.tmp' -delete",
+   "tip": "find walks every level for you, and -delete removes what it matched. Test with -print first in real life."
+  },
+  {
+   "id": "golf.11",
+   "title": "Just the Number",
+   "goal": "Print how many lines ~/big.log has: the number alone, with no file name after it.",
+   "setup": {
+    "files": {
+     "~/big.log": "event 1: oven check ok\nevent 2: oven check ok\nevent 3: oven check ok\nevent 4: oven check ok\nevent 5: oven check ok\nevent 6: oven check ok\nevent 7: oven check ok\nevent 8: oven check ok\nevent 9: oven check ok\nevent 10: oven check ok\nevent 11: oven check ok\nevent 12: oven check ok\nevent 13: oven check ok\nevent 14: oven check ok\nevent 15: oven check ok\nevent 16: oven check ok\nevent 17: oven check ok\nevent 18: oven check ok\nevent 19: oven check ok\nevent 20: oven check ok\nevent 21: oven check ok\nevent 22: oven check ok\nevent 23: oven check ok\nevent 24: oven check ok\nevent 25: oven check ok\nevent 26: oven check ok\nevent 27: oven check ok\nevent 28: oven check ok\nevent 29: oven check ok\nevent 30: oven check ok\nevent 31: oven check ok\nevent 32: oven check ok\nevent 33: oven check ok\nevent 34: oven check ok\nevent 35: oven check ok\nevent 36: oven check ok\nevent 37: oven check ok\nevent 38: oven check ok\nevent 39: oven check ok\nevent 40: oven check ok\nevent 41: oven check ok\nevent 42: oven check ok\nevent 43: oven check ok\nevent 44: oven check ok\nevent 45: oven check ok\nevent 46: oven check ok\nevent 47: oven check ok\nevent 48: oven check ok\nevent 49: oven check ok\nevent 50: oven check ok\nevent 51: oven check ok\nevent 52: oven check ok\nevent 53: oven check ok\nevent 54: oven check ok\nevent 55: oven check ok\nevent 56: oven check ok\nevent 57: oven check ok\n"
+    }
+   },
+   "check": [
+    {
+     "t": "out",
+     "re": "(?<![\\s\\S])\\s*57\\s*(?![\\s\\S])"
+    },
+    {
+     "t": "cmd",
+     "re": "\\bwc\\b"
+    }
+   ],
+   "par": "wc -l < big.log",
+   "tip": "When wc reads standard input it has no file name to print, so you get just the count."
+  },
+  {
+   "id": "golf.12",
+   "title": "Photocopier",
+   "goal": "Copy the whole ~/Documents folder, with everything in it, to a new folder ~/bak.",
+   "check": [
+    {
+     "t": "exists",
+     "p": "~/bak/report.txt"
+    },
+    {
+     "t": "exists",
+     "p": "~/bak/todo.txt"
+    },
+    {
+     "t": "exists",
+     "p": "~/Documents/report.txt"
+    },
+    {
+     "t": "exists",
+     "p": "~/Documents/todo.txt"
+    }
+   ],
+   "par": "cp -r Documents bak",
+   "tip": "cp -r copies a folder and all of its contents. Without -r, cp refuses to copy folders."
+  }
+ ],
+ "bosses": [
+  {
+   "id": "boss.p1",
+   "part": 1,
+   "kind": "terminal",
+   "title": "The Crumb Goblin",
+   "time": 300,
+   "intro": "A greedy goblin raided ~/goblin-mess overnight: receipts everywhere, a log full of crumbs, and stolen loot stashed somewhere hidden. Clean up before the clock runs out!",
+   "setup": {
+    "files": {
+     "~/goblin-mess/receipt-1.txt": "Receipt 1: 3 croissants\n",
+     "~/goblin-mess/receipt-2.txt": "Receipt 2: 1 cake\n",
+     "~/goblin-mess/receipt-3.txt": "Receipt 3: 2 bagels\n",
+     "~/goblin-mess/receipt-4.txt": "Receipt 4: 6 muffins\n",
+     "~/goblin-mess/.loot": "One golden whisk, property of the bakery\n",
+     "~/goblin-mess/crumbs.log": "cake crumbs on desk\nbread crumbs on floor\ncheesecake crumbs in drawer\nmuffin crumbs on chair\nbiscuit crumbs in keyboard\ncarrot cake crumbs on phone\nscone crumbs on mat\nrye crumbs in sink\ncupcake crumbs on lamp\n"
+    }
+   },
+   "steps": [
+    {
+     "goal": "Go into the goblin-mess folder.",
+     "hint": "cd",
+     "check": [
+      {
+       "t": "cwd",
+       "p": "~/goblin-mess"
+      }
+     ],
+     "solution": "cd goblin-mess"
+    },
+    {
+     "goal": "Reveal the goblin's hidden file.",
+     "hint": "ls -a",
+     "check": [
+      {
+       "t": "out",
+       "re": "\\.loot"
+      }
+     ],
+     "solution": "ls -a"
+    },
+    {
+     "goal": "Make a folder called receipts and move all four receipt files into it.",
+     "hint": "mkdir, then mv with a wildcard",
+     "check": [
+      {
+       "t": "isdir",
+       "p": "~/goblin-mess/receipts"
+      },
+      {
+       "t": "exists",
+       "p": "~/goblin-mess/receipts/receipt-1.txt"
+      },
+      {
+       "t": "exists",
+       "p": "~/goblin-mess/receipts/receipt-4.txt"
+      },
+      {
+       "t": "absent",
+       "p": "~/goblin-mess/receipt-2.txt"
+      },
+      {
+       "t": "absent",
+       "p": "~/goblin-mess/receipt-3.txt"
+      }
+     ],
+     "solution": [
+      "mkdir receipts",
+      "mv receipt-* receipts"
+     ]
+    },
+    {
+     "goal": "Copy the hidden loot file to ~/Desktop/evidence.txt.",
+     "hint": "cp",
+     "check": [
+      {
+       "t": "content",
+       "p": "~/Desktop/evidence.txt",
+       "re": "golden whisk"
+      }
+     ],
+     "solution": "cp .loot ~/Desktop/evidence.txt"
+    },
+    {
+     "goal": "Save the line count of crumbs.log into count.txt.",
+     "hint": "wc -l and >",
+     "check": [
+      {
+       "t": "content",
+       "p": "~/goblin-mess/count.txt",
+       "re": "^\\s*9\\b"
+      }
+     ],
+     "solution": "wc -l crumbs.log > count.txt"
+    },
+    {
+     "goal": "Show only the crumbs.log lines that mention cake, in sorted order.",
+     "hint": "grep piped into sort",
+     "check": [
+      {
+       "t": "out",
+       "re": "(?<![\\s\\S])cake crumbs on desk\\ncarrot cake crumbs on phone\\ncheesecake crumbs in drawer\\ncupcake crumbs on lamp\\n?(?![\\s\\S])"
+      },
+      {
+       "t": "cmd",
+       "re": "\\|"
+      }
+     ],
+     "solution": "grep cake crumbs.log | sort"
+    },
+    {
+     "goal": "Delete crumbs.log and head back home.",
+     "hint": "rm, then cd",
+     "check": [
+      {
+       "t": "absent",
+       "p": "~/goblin-mess/crumbs.log"
+      },
+      {
+       "t": "cwd",
+       "p": "~"
+      }
+     ],
+     "solution": [
+      "rm crumbs.log",
+      "cd"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "boss.p2",
+   "part": 2,
+   "kind": "terminal",
+   "title": "The Prompt Poltergeist",
+   "time": 240,
+   "intro": "A poltergeist haunts your shell and wipes every setting the moment you log out. Shape your environment, make it stick in ~/.bashrc, and banish the ghost.",
+   "steps": [
+    {
+     "goal": "Create an alias l that runs ls -la, then use it.",
+     "hint": "alias l='ls -la', then type l",
+     "check": [
+      {
+       "t": "out",
+       "re": "\\.bashrc"
+      },
+      {
+       "t": "cmd",
+       "re": "^l$"
+      }
+     ],
+     "solution": [
+      "alias l='ls -la'",
+      "l"
+     ]
+    },
+    {
+     "goal": "Export a variable BAKERY with the value open, then show it with printenv.",
+     "hint": "export BAKERY=open, then printenv BAKERY",
+     "check": [
+      {
+       "t": "out",
+       "re": "^open$"
+      },
+      {
+       "t": "cmd",
+       "re": "^printenv\\s+BAKERY"
+      }
+     ],
+     "solution": [
+      "export BAKERY=open",
+      "printenv BAKERY"
+     ]
+    },
+    {
+     "goal": "Change your prompt to read baker$ by setting PS1, then echo PS1 to check it.",
+     "hint": "PS1='baker\\$ ', then echo $PS1",
+     "check": [
+      {
+       "t": "out",
+       "re": "^baker"
+      },
+      {
+       "t": "cmd",
+       "re": "^echo\\s+\"?\\$\\{?PS1"
+      }
+     ],
+     "solution": [
+      "PS1='baker\\$ '",
+      "echo $PS1"
+     ]
+    },
+    {
+     "goal": "Make the alias permanent by appending it to ~/.bashrc, without wiping the file.",
+     "hint": "echo the alias line with >>",
+     "check": [
+      {
+       "t": "content",
+       "p": "~/.bashrc",
+       "re": "^alias l='ls -la'$"
+      },
+      {
+       "t": "content",
+       "p": "~/.bashrc",
+       "re": "^alias ll='ls -l'$"
+      }
+     ],
+     "solution": "echo \"alias l='ls -la'\" >> ~/.bashrc"
+    },
+    {
+     "goal": "Reload ~/.bashrc into the shell you are using right now.",
+     "hint": "source, or a single dot",
+     "check": [
+      {
+       "t": "cmd",
+       "re": "^(source|\\.)\\s+(~|/home/me)/\\.bashrc"
+      }
+     ],
+     "solution": "source ~/.bashrc"
+    }
+   ]
+  },
+  {
+   "id": "boss.p3",
+   "part": 3,
+   "kind": "terminal",
+   "title": "The Health Inspector From Below",
+   "time": 360,
+   "intro": "A grim inspector rises from the basement with a clipboard and a stopwatch. Find the expired food, read the oven logs, calm the report and fix the scripts, or the bakery gets a zero.",
+   "setup": {
+    "files": {
+     "~/inspect/fridge/milk.txt": "fresh until friday\n",
+     "~/inspect/fridge/cream.txt": "EXPIRED last tuesday\n",
+     "~/inspect/fridge/butter.txt": "EXPIRED yesterday\n",
+     "~/inspect/freezer/ice.txt": "frozen solid\n",
+     "~/inspect/freezer/old-note": "",
+     "~/inspect/oven/temps.log": "oven1 220\noven2 180\noven3 260\noven4 90\n",
+     "~/inspect/pantry/stock.csv": "flour,millco,20\nsugar,sweetco,5\nyeast,millco,2\nbutter,dairyco,8\nsalt,sweetco,3\n",
+     "~/inspect/report.txt": "THIS KITCHEN IS A DISGRACE\nPLEASE MOP THE FLOOR\n",
+     "~/inspect/cleaning.sh": {
+      "data": "echo \"mopping\"\n",
+      "mode": "644"
+     }
+    }
+   },
+   "steps": [
+    {
+     "goal": "Find every .txt file anywhere under ~/inspect.",
+     "hint": "find with -name",
+     "check": [
+      {
+       "t": "out",
+       "re": "fridge/milk\\.txt"
+      },
+      {
+       "t": "out",
+       "re": "freezer/ice\\.txt"
+      },
+      {
+       "t": "out",
+       "re": "inspect/report\\.txt"
+      },
+      {
+       "t": "cmd",
+       "re": "^find\\b"
+      }
+     ],
+     "solution": "find inspect -name '*.txt'"
+    },
+    {
+     "goal": "List only the names of the fridge files that contain EXPIRED.",
+     "hint": "grep -l",
+     "check": [
+      {
+       "t": "out",
+       "re": "cream\\.txt"
+      },
+      {
+       "t": "out",
+       "re": "butter\\.txt"
+      },
+      {
+       "t": "out",
+       "re": "(?<![\\s\\S])(?![\\s\\S]*milk)"
+      },
+      {
+       "t": "cmd",
+       "re": "^grep\\b.*-\\w*l"
+      }
+     ],
+     "solution": "grep -l EXPIRED inspect/fridge/*"
+    },
+    {
+     "goal": "Show the single hottest oven: sort temps.log by its 2nd field numerically, highest first, and keep the top line.",
+     "hint": "sort -k2 -nr, then head -1",
+     "check": [
+      {
+       "t": "out",
+       "re": "(?<![\\s\\S])oven3 260\\n?(?![\\s\\S])"
+      },
+      {
+       "t": "cmd",
+       "re": "\\|"
+      }
+     ],
+     "solution": "sort -k2 -nr inspect/oven/temps.log | head -1"
+    },
+    {
+     "goal": "List each supplier in stock.csv (the 2nd comma field) once, alphabetically.",
+     "hint": "cut, then sort -u",
+     "check": [
+      {
+       "t": "out",
+       "re": "(?<![\\s\\S])dairyco\\nmillco\\nsweetco\\n?(?![\\s\\S])"
+      }
+     ],
+     "solution": "cut -d, -f2 inspect/pantry/stock.csv | sort -u"
+    },
+    {
+     "goal": "Calm the shouting report: write a lowercase copy of report.txt to ~/inspect/calm.txt.",
+     "hint": "tr A-Z a-z with < and >",
+     "check": [
+      {
+       "t": "content",
+       "p": "~/inspect/calm.txt",
+       "re": "(?<![\\s\\S])this kitchen is a disgrace\\nplease mop the floor\\n?(?![\\s\\S])"
+      }
+     ],
+     "solution": "tr A-Z a-z < inspect/report.txt > inspect/calm.txt"
+    },
+    {
+     "goal": "Make cleaning.sh rwxr--r--: executable for you only.",
+     "hint": "chmod 744, or u+x",
+     "check": [
+      {
+       "t": "mode",
+       "p": "~/inspect/cleaning.sh",
+       "mode": "744"
+      }
+     ],
+     "solution": "chmod 744 inspect/cleaning.sh"
+    },
+    {
+     "goal": "Use find to delete every empty file under ~/inspect.",
+     "hint": "-type f -empty -delete",
+     "check": [
+      {
+       "t": "absent",
+       "p": "~/inspect/freezer/old-note"
+      },
+      {
+       "t": "exists",
+       "p": "~/inspect/freezer/ice.txt"
+      }
+     ],
+     "solution": "find inspect -type f -empty -delete"
+    }
+   ]
+  },
+  {
+   "id": "boss.p4",
+   "part": 4,
+   "kind": "quiz",
+   "title": "The Script Sphinx",
+   "time": 300,
+   "lives": 3,
+   "count": 12,
+   "chapters": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "intro": "At the gate to shell scripting sits a sphinx who only speaks in riddles about variables, loops, tests and functions. Answer twelve before your three lives run out."
+  }
+ ]
+};

@@ -61,4 +61,7 @@ t('2>&1 order', () => { const s = fresh(); s.run('ls nope > a.txt 2>&1'); assert
 t('prompt escapes and colours', () => { const s = fresh(); assert.equal(s.prompt(), '[me@linuxbox ~]$ '); s.run('cd Documents'); assert.equal(s.prompt(), '[me@linuxbox Documents]$ ');
   s.run('PS1="<\\u@\\h \\w>\\$ "'); assert.equal(s.prompt(), '<me@linuxbox ~/Documents>$ ');
   const p = s.promptParts('\\[\\033[0;31m\\]red\\[\\033[0m\\] \\033[1;44mX'); assert.equal(JSON.stringify(p.map(x => [x.t, x.fg, x.bg, x.bold])), JSON.stringify([['red', 1, null, false], [' ', null, null, false], ['X', null, 4, true]])); });
+t('load puzzle filesystem', () => { const s = fresh(); s.load({ remove: ['~/foo.txt'], dirs: ['~/escape/vault'], files: { '~/escape/.clue': 'look in vault', '~/escape/vault/code.txt': { data: '4815', mode: '000' }, '~/escape/old.log': { data: 'x', age: 600 } }, modes: { '~/escape/vault': '700' }, cwd: '~/escape' });
+  assert.equal(s.cwd, '/home/me/escape'); assert.equal(out(s, 'ls'), 'old.log  vault\n'); assert.equal(out(s, 'cat .clue'), 'look in vault'); assert.match(out(s, 'cat vault/code.txt'), /Permission denied/);
+  s.run('chmod 600 vault/code.txt'); assert.equal(out(s, 'cat vault/code.txt'), '4815'); assert.ok(s.check([{ t: 'absent', p: '~/foo.txt' }])[0]); assert.equal(out(s, 'ls -t | head -1'), 'vault\n'); });
 console.log(n + ' terminal checks passed' + (process.exitCode ? ' (with failures above)' : ''));

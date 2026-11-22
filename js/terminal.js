@@ -1624,6 +1624,31 @@
     };
     sh.readFile = function (p) { var L = look(p); return L.node && L.node.t === 'f' ? L.node.data : null; };
 
+    // Puzzle filesystems for games (story missions, escape rooms, golf, bosses). Runs with full rights.
+    //   { remove: [path], dirs: [path], files: { path: "text" | { data, mode, age } }, links: { path: target },
+    //     modes: { path: "755" }, cwd: path }        paths may start with ~ ; age = minutes ago (for ls -t)
+    sh.load = function (st) {
+      if (!st) return;
+      function P(p) { return norm(String(p).replace(/^~(?=\/|$)/, HOME), HOME); }
+      function mkdirp(abs) {
+        var cur = root;
+        abs.split('/').filter(Boolean).forEach(function (part) {
+          if (!cur.kids[part] || cur.kids[part].t !== 'd') cur.kids[part] = { t: 'd', kids: {}, mode: '775', owner: USER, mtime: now() };
+          cur = cur.kids[part];
+        });
+        return cur;
+      }
+      (st.remove || []).forEach(function (p) { var L = look(P(p), false); if (L.node && L.parent) delete L.parent.kids[L.name]; });
+      (st.dirs || []).forEach(function (p) { mkdirp(P(p)); });
+      Object.keys(st.files || {}).forEach(function (p) {
+        var abs = P(p), spec = st.files[p], f = typeof spec === 'string' ? { data: spec } : spec;
+        mkdirp(dirname(abs)).kids[basename(abs)] = { t: 'f', data: f.data || '', mode: f.mode || '664', owner: USER, mtime: now() - (f.age || 0) * 60000 };
+      });
+      Object.keys(st.links || {}).forEach(function (p) { var abs = P(p); mkdirp(dirname(abs)).kids[basename(abs)] = { t: 'l', target: st.links[p], mode: '777', owner: USER, mtime: now() }; });
+      Object.keys(st.modes || {}).forEach(function (p) { var L = look(P(p), false); if (L.node) L.node.mode = st.modes[p]; });
+      if (st.cwd) { sh.cwd = P(st.cwd); vars.PWD = sh.cwd; }
+    };
+
     // Guided-task checks (declarative). last = result of sh.run
     sh.check = function (checks, last) {
       function P(p) { return norm(p.replace(/^~(?=\/|$)/, HOME), HOME); }

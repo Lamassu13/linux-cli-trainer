@@ -9,6 +9,8 @@ const ctx = vm.createContext({ console, structuredClone, Intl, window: {} });
 vm.runInContext(readFileSync(new URL('js/content.js', root), 'utf8'), ctx);
 vm.runInContext(readFileSync(new URL('js/terminal.js', root), 'utf8'), ctx);
 const C = ctx.window.CONTENT, Term = ctx.window.Term;
+// GAMES=path/to/games.json checks a draft games file instead of the one in content.js
+if (process.env.GAMES) C.games = JSON.parse(readFileSync(process.env.GAMES, 'utf8'));
 const errors = [], warns = [];
 const E = (m) => errors.push(m), W = (m) => warns.push(m);
 
@@ -83,6 +85,55 @@ for (const p of C.pairs || []) {
   for (const it of p.items || []) { nPairs++; if (!it.q || !/^[ab]$/.test(it.ans) || !it.why) E(`pair ${p.id}: item needs q, ans a|b, why`); }
 }
 
+// Games: every mission step, escape room, golf hole and terminal boss must be solvable in the simulator,
+// and must not already be solved before its solution runs.
+const G = C.games || {};
+let nGames = 0;
+const SIM_ONLY = (id, r, cmd) => { if (r && BAD.test(r.text || '')) E(`${id}: "${cmd}" is not runnable in the simulator → ${(r.text || '').trim().split('\n')[0]}`); };
+function checkSteps(id, setup, steps) {
+  const sh = fresh(); sh.load(setup);
+  if (!Array.isArray(steps) || !steps.length) return E(`${id}: needs steps[]`);
+  steps.forEach((st, i) => {
+    if (!st.goal || !Array.isArray(st.check) || !st.check.length || !st.solution) return E(`${id} step ${i + 1}: needs goal, check[], solution`);
+    if (sh.check(st.check, null).every(Boolean)) E(`${id} step ${i + 1}: checks already pass before its solution`);
+    let last = null;
+    for (const cmd of [].concat(st.solution)) { last = sh.run(cmd); SIM_ONLY(id, last, cmd); }
+    const res = sh.check(st.check, last);
+    if (!res.every(Boolean)) E(`${id} step ${i + 1} "${st.goal}": solution fails ${JSON.stringify(st.check.filter((c, k) => !res[k]))}\n      → ${(last.text || '').trim().slice(0, 160)}`);
+  });
+}
+function checkFinal(id, setup, check, solution) {
+  const sh = fresh(); sh.load(setup);
+  if (!Array.isArray(check) || !check.length) return E(`${id}: needs check[]`);
+  if (sh.check(check, null).every(Boolean)) E(`${id}: checks already pass before the solution`);
+  let last = null;
+  for (const cmd of [].concat(solution || [])) { last = sh.run(cmd); SIM_ONLY(id, last, cmd); }
+  const res = sh.check(check, last);
+  if (!res.every(Boolean)) E(`${id}: solution fails ${JSON.stringify(check.filter((c, k) => !res[k]))}\n      → ${((last && last.text) || '').trim().slice(0, 160)}`);
+}
+for (const day of G.story || []) {
+  if (!day.id || !day.title || !Array.isArray(day.missions)) { E(`story day ${day.id}: needs id, title, missions[]`); continue; }
+  for (const m of day.missions) { nGames++; uid(m.id, 'story'); if (!m.title || !m.intro) E(`${m.id}: needs title, intro`); checkSteps(m.id, m.setup, m.steps); }
+}
+for (const r of G.rooms || []) {
+  nGames++; uid(r.id, 'rooms');
+  if (!r.title || !r.intro || !Array.isArray(r.hints) || r.hints.length < 2) E(`${r.id}: needs title, intro, 2+ hints`);
+  checkFinal(r.id, r.setup, r.check, r.solution);
+}
+for (const h of G.golf || []) {
+  nGames++; uid(h.id, 'golf');
+  if (!h.title || !h.goal || typeof h.par !== 'string') { E(`${h.id}: needs title, goal, par (the reference solution)`); continue; }
+  if ((h.check || []).every(c => c.t === 'out')) E(`${h.id}: golf checks only look at output, so a bare echo could beat par; add a cmd or file check`);
+  checkFinal(h.id, h.setup, h.check, [h.par]);
+}
+for (const b of G.bosses || []) {
+  nGames++; uid(b.id, 'bosses');
+  if (!b.title || !b.intro || !(b.time > 0) || ![1, 2, 3, 4].includes(b.part)) E(`${b.id}: needs title, intro, time, part 1-4`);
+  if (b.kind === 'terminal') checkSteps(b.id, b.setup, b.steps);
+  else if (b.kind === 'quiz') { if (!(b.count > 0 && b.lives > 0) || !(b.chapters || []).length || b.chapters.some(n => !C.modules.some(m => m.n === n))) E(`${b.id}: quiz boss needs count, lives, chapters[] of real chapters`); }
+  else E(`${b.id}: kind must be terminal or quiz`);
+}
+
 // Book checks (optional): names and flags present in the chapter text, no 8-word copies, chapter openers covered.
 const dump = process.argv[2];
 if (dump && existsSync(dump)) {
@@ -106,6 +157,12 @@ if (dump && existsSync(dump)) {
     for (const s of [l.intro, ...(l.terms || []).map(t => t.d), ...(l.quiz || []).map(q => q.explain)]) { const hit = copied(s); if (hit) E(`${l.id}: copies the book: "${hit}"`); }
   }
   for (const p of C.pairs || []) for (const it of p.items || []) for (const s of [it.q, it.why]) { const hit = copied(s); if (hit) E(`pair ${p.id}: copies the book: "${hit}"`); }
+  const gameText = [];
+  for (const d of G.story || []) { gameText.push([d.id, d.intro]); for (const m of d.missions || []) { gameText.push([m.id, m.intro], [m.id, m.outro]); for (const st of m.steps || []) gameText.push([m.id, st.goal], [m.id, st.hint]); } }
+  for (const r of G.rooms || []) { gameText.push([r.id, r.intro], [r.id, r.outro]); (r.hints || []).forEach(h => gameText.push([r.id, h])); }
+  for (const h of G.golf || []) gameText.push([h.id, h.goal], [h.id, h.tip]);
+  for (const b of G.bosses || []) { gameText.push([b.id, b.intro]); for (const st of b.steps || []) gameText.push([b.id, st.goal]); }
+  for (const [id, txt] of gameText) { const hit = copied(txt); if (hit) E(`${id}: copies the book: "${hit}"`); }
   // chapter-opener command lists: "name Description" lines on the first page of each chapter
   const names = new Set([...cmds.values()].map(x => x.c.name));
   for (const m of C.modules) {
@@ -118,7 +175,7 @@ if (dump && existsSync(dump)) {
   }
 }
 
-console.log(`${C.modules.length} modules · ${nCmd} commands · ${nEx} examples (${nSim} simulated) · ${nTerm} terms · ${nTask} tasks · ${nQuiz} quiz items · ${nPairs} mix-up items`);
+console.log(`${C.modules.length} modules · ${nCmd} commands · ${nEx} examples (${nSim} simulated) · ${nTerm} terms · ${nTask} tasks · ${nQuiz} quiz items · ${nPairs} mix-up items · ${nGames} games`);
 warns.slice(0, 40).forEach(w => console.log('warn  ', w));
 if (warns.length > 40) console.log(`warn   … ${warns.length - 40} more`);
 errors.forEach(e => console.log('ERROR ', e));
