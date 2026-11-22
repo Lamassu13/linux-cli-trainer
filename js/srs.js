@@ -15,8 +15,8 @@
 
   function today() { var d = new Date(); return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000); }
   function blank() {
-    return { v: 1, cards: {}, treview: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, xp: 0, streak: { last: 0, n: 0, best: 0 },
-      badges: {}, speed: { best: 0 }, counts: { run: 0, reviews: 0, correct: 0, perfect: 0, recalled: 0, treviews: 0 },
+    return { v: 1, cards: {}, treview: {}, daily: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, xp: 0, streak: { last: 0, n: 0, best: 0 },
+      badges: {}, speed: { best: 0 }, counts: { run: 0, reviews: 0, correct: 0, perfect: 0, recalled: 0, treviews: 0, dailies: 0 },
       settings: { theme: 'system', front: 'cmd', mode: 'flip' } };
   }
   function valid(s) { return s && s.v === 1 && typeof s.cards === 'object' && typeof s.xp === 'number' && typeof s.streak === 'object'; }
@@ -25,12 +25,13 @@
   function num(x) { x = Number(x); return isFinite(x) ? x : 0; }
   function obj(x) { return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; }
   function merge(s) {
-    var b = blank(), o = { v: 1, cards: {}, treview: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, badges: {} };
+    var b = blank(), o = { v: 1, cards: {}, treview: {}, daily: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, badges: {} };
     ['cards', 'treview'].forEach(function (f) {
       Object.keys(obj(s[f])).forEach(function (k) { var c = s[f][k]; if (Array.isArray(c)) o[f][k] = [Math.max(1, Math.min(5, num(c[0]))), num(c[1])]; });
     });
     Object.keys(obj(s.stats)).forEach(function (k) { var x = obj(s.stats[k]); o.stats[k] = { ok: num(x.ok), bad: num(x.bad), last: num(x.last) }; });
     ['lessons', 'tasks', 'badges'].forEach(function (f) { Object.keys(obj(s[f])).forEach(function (k) { o[f][k] = num(s[f][k]) || 1; }); });
+    Object.keys(obj(s.daily)).forEach(function (k) { if (/^\d+$/.test(k)) o.daily[k] = num(s.daily[k]); });
     Object.keys(obj(s.quiz)).forEach(function (k) { var x = obj(s.quiz[k]); o.quiz[k] = { best: num(x.best), runs: num(x.runs) }; });
     o.xp = num(s.xp);
     var st = obj(s.streak); o.streak = { last: num(st.last), n: num(st.n), best: num(st.best) };
@@ -137,6 +138,15 @@
     if (total >= 8 && score === total) state.counts.perfect++;
     save(); checkBadges();
   }
+  // daily challenge: only the first attempt of each (UTC) day is scored
+  function dailyResult(day, score, total) {
+    if (state.daily[day] !== undefined) return false;
+    state.daily[day] = score; state.counts.dailies++;
+    Object.keys(state.daily).sort(function (a, b) { return b - a; }).slice(120).forEach(function (k) { delete state.daily[k]; });
+    if (total >= 8 && score === total) state.counts.perfect++;
+    addXP(10 + score * 3, 'daily');
+    return true;
+  }
   function ran() { state.counts.run++; if (state.counts.run % 5 === 0) checkBadges(); save(); }
   function speedResult(score) { var nb = score > state.speed.best; if (nb) state.speed.best = score; save(); checkBadges(); return nb; }
 
@@ -154,6 +164,7 @@
     { id: 'cards100', icon: '🃏', name: 'Card shark', d: 'Review 100 flashcards', test: function () { return state.counts.reviews >= 100; } },
     { id: 'recall50', icon: '✍️', name: 'Total recall', d: 'Type 50 flashcard answers correctly', test: function () { return state.counts.recalled >= 50; } },
     { id: 'treview10', icon: '🔁', name: 'Muscle memory', d: 'Redo 10 tasks from memory', test: function () { return state.counts.treviews >= 10; } },
+    { id: 'daily7', icon: '📆', name: 'Daily devotee', d: 'Complete 7 daily challenges', test: function () { return state.counts.dailies >= 7; } },
     { id: 'perfect', icon: '💯', name: 'Perfectionist', d: 'Score 100% on a quiz of 8+ questions', test: function () { return state.counts.perfect >= 1; } },
     { id: 'speed15', icon: '⚡', name: 'Speed demon', d: 'Score 15+ in a speed round', test: function () { return state.speed.best >= 15; } },
     { id: 'streak3', icon: '🔥', name: 'On a roll', d: 'Keep a 3-day streak', test: function () { return state.streak.best >= 3; } },
@@ -186,7 +197,7 @@
     setContent: function (c) { content = c; },
     level: level, levelSpan: levelSpan, streakNow: streakNow, addXP: addXP,
     grade: grade, preview: preview, recalled: recalled, isDue: isDue, box: box, INTERVALS: INTERVALS,
-    reviewTask: reviewTask, dueTasks: dueTasks,
+    reviewTask: reviewTask, dueTasks: dueTasks, dailyResult: dailyResult,
     answer: answer, weak: weak, mistakes: mistakes,
     lessonDone: lessonDone, taskDone: taskDone, quizResult: quizResult, ran: ran, speedResult: speedResult,
     BADGES: BADGES, checkBadges: checkBadges,

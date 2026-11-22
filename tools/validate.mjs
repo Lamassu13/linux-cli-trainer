@@ -74,6 +74,15 @@ for (const m of C.modules) {
   }
 }
 
+// Mix-up pairs: every side names a real command, every item has a question, a/b answer and a reason.
+let nPairs = 0;
+for (const p of C.pairs || []) {
+  uid('pair:' + p.id, 'pairs');
+  if (!C.modules.some(m => m.n === p.ch)) E(`pair ${p.id}: unknown chapter ${p.ch}`);
+  for (const side of [p.a, p.b]) if (!side || !side.label || !cmds.has(side.cmd)) E(`pair ${p.id}: side needs label and a known cmd (${side && side.cmd})`);
+  for (const it of p.items || []) { nPairs++; if (!it.q || !/^[ab]$/.test(it.ans) || !it.why) E(`pair ${p.id}: item needs q, ans a|b, why`); }
+}
+
 // Book checks (optional): names and flags present in the chapter text, no 8-word copies, chapter openers covered.
 const dump = process.argv[2];
 if (dump && existsSync(dump)) {
@@ -96,6 +105,7 @@ if (dump && existsSync(dump)) {
   for (const m of C.modules) for (const l of m.lessons) {
     for (const s of [l.intro, ...(l.terms || []).map(t => t.d), ...(l.quiz || []).map(q => q.explain)]) { const hit = copied(s); if (hit) E(`${l.id}: copies the book: "${hit}"`); }
   }
+  for (const p of C.pairs || []) for (const it of p.items || []) for (const s of [it.q, it.why]) { const hit = copied(s); if (hit) E(`pair ${p.id}: copies the book: "${hit}"`); }
   // chapter-opener command lists: "name Description" lines on the first page of each chapter
   const names = new Set([...cmds.values()].map(x => x.c.name));
   for (const m of C.modules) {
@@ -108,7 +118,7 @@ if (dump && existsSync(dump)) {
   }
 }
 
-console.log(`${C.modules.length} modules · ${nCmd} commands · ${nEx} examples (${nSim} simulated) · ${nTerm} terms · ${nTask} tasks · ${nQuiz} quiz items`);
+console.log(`${C.modules.length} modules · ${nCmd} commands · ${nEx} examples (${nSim} simulated) · ${nTerm} terms · ${nTask} tasks · ${nQuiz} quiz items · ${nPairs} mix-up items`);
 warns.slice(0, 40).forEach(w => console.log('warn  ', w));
 if (warns.length > 40) console.log(`warn   … ${warns.length - 40} more`);
 errors.forEach(e => console.log('ERROR ', e));

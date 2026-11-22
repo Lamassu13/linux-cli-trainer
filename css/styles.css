@@ -532,3 +532,10 @@ body.kb-open .sheet-body .term { height: calc(var(--vvh, 100dvh) - var(--safe-t)
 .task-due small { display: block; color: var(--muted); font-size: .85rem; }
 .flash-stage.typed { height: clamp(190px, 34dvh, 320px); }
 body.kb-open .flash-stage.typed { height: clamp(150px, 26dvh, 240px); }
+
+/* ---------- quiz modes: mix-ups, daily, challenges ---------- */
+.eyebrow.mixup { color: var(--accent2); margin-bottom: 4px; }
+.challenge-banner { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--bg2)); margin-bottom: 14px; }
+.versus { font-weight: 700; font-size: 1.05rem; }
+.share-box { margin-top: 12px; }
+.share-url { font-family: var(--mono); text-align: center; }

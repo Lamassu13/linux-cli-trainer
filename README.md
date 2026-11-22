@@ -13,6 +13,9 @@ An interactive, offline-capable web app for learning and memorizing the Linux co
 | Flashcards | Leitner spaced repetition with Again/Hard/Good/Easy grading and swipe gestures; a flip mode and a type-the-answer mode with typo detection; fill-in-the-blank cards built from the book's examples |
 | Task reviews | Finished guided tasks come back on a schedule to redo from memory, without hints |
 | Quizzes | Multiple choice, type the command, "which command produced this output?", build-the-command puzzles, a 60-second speed round, and a weak-commands drill |
+| Mix-ups | 20 pairs people confuse (`cp`/`mv`, `>`/`>>`, `find`/`locate`, hard/symbolic links…) as quick two-choice questions |
+| Daily challenge | The same 8 questions for everyone each day, scored once and counted toward your streak |
+| Challenge links | After a quiz or speed round, share a link that gives a friend the exact same questions and shows your score to beat |
 | Progress | XP, levels, streaks, badges, a progress ring per chapter, and export/import of progress as JSON |
 | Cheat sheet | Searchable and filterable by chapter |
 | App | Works offline (PWA) and can be installed to the home screen |
@@ -78,6 +81,7 @@ Field rules:
 - **`viz`** can be `tree`, `pipe`, `scan` (grep) or `chmod`.
 - **Task `check`** types are `exists`, `absent`, `isdir`, `content` (with `re`), `cwd`, `mode` (with `mode`), `cmd` and `out` (each with `re`). Tasks always start from a fresh copy of the practice filesystem with the working directory at `/home/me`.
 - **Quiz types** are `mc`, `fill` (with `accept: [...]`), `output` (with `out`, `choices`, `answer`) and `order` (with `parts: [...]`). The app also generates extra questions from every command's flags and examples.
+- **Mix-up pairs** live in `CONTENT.pairs` at the end of `content.js`: `{ id, ch, a: {label, cmd}, b: {label, cmd}, items: [{ q, ans: "a"|"b", why }] }`.
 - **Progress ids** for flashcards come from command and flag ids (`c:cp`, `f:cp:-r`). Keep those ids stable so saved progress survives your edits.
 
 After editing, run both checks:

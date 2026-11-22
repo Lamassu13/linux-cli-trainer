@@ -25563,3 +25563,78 @@ window.CONTENT = {
   }
  ]
 };
+
+/* Confusable pairs ("Mix-ups" quiz). Each pair is two things learners often mix up.
+ *   { id, ch, a: {label, cmd}, b: {label, cmd}, items: [{ q, ans: 'a'|'b', why }] }
+ * cmd is a command id above (it feeds the weak-commands list). Facts are from the chapter named in ch.
+ */
+window.CONTENT.pairs = [
+ { "id": "cp-mv", "ch": 4, "a": { "label": "cp", "cmd": "cp" }, "b": { "label": "mv", "cmd": "mv" }, "items": [
+  { "q": "Make a second copy of notes.txt elsewhere and keep the original", "ans": "a", "why": "cp duplicates; the source stays put." },
+  { "q": "Rename report.txt to final.txt", "ans": "b", "why": "Renaming is a move to a new name in the same directory." },
+  { "q": "After it runs, the source name no longer exists", "ans": "b", "why": "mv relocates the item, so the old name is gone." },
+  { "q": "Needs -r (or -a) before it will handle a directory", "ans": "a", "why": "cp skips directories unless told to recurse; mv moves them as they are." } ] },
+ { "id": "out-append", "ch": 6, "a": { "label": ">", "cmd": "redirect-out" }, "b": { "label": ">>", "cmd": "redirect-append" }, "items": [
+  { "q": "Add today's results to the end of log.txt, keeping what is already there", "ans": "b", "why": ">> appends to the file instead of starting over." },
+  { "q": "Write the output to the file, starting it fresh each time", "ans": "a", "why": "> rewrites the file from the beginning." },
+  { "q": "Used alone with a filename, it empties an existing file or creates a blank one", "ans": "a", "why": "The book's trick: > file with no command truncates it." } ] },
+ { "id": "err-both", "ch": 6, "a": { "label": "2>", "cmd": "redirect-err" }, "b": { "label": "&>", "cmd": "redirect-both" }, "items": [
+  { "q": "Send only the error messages to a file", "ans": "a", "why": "File descriptor 2 is standard error." },
+  { "q": "Capture normal output and errors together in one file", "ans": "b", "why": "&> redirects both streams at once." } ] },
+ { "id": "quotes", "ch": 7, "a": { "label": "'single'", "cmd": "single-quote" }, "b": { "label": "\"double\"", "cmd": "double-quote" }, "items": [
+  { "q": "Print $USER literally, dollar sign and all", "ans": "a", "why": "Single quotes switch off every expansion." },
+  { "q": "Keep several spaces in a row but still expand $HOME", "ans": "b", "why": "Double quotes stop word splitting yet allow parameter expansion." },
+  { "q": "Inside these, $(command) and $((math)) still get expanded", "ans": "b", "why": "Only $, \\ and ` keep their special meaning in double quotes." } ] },
+ { "id": "arith-subst", "ch": 7, "a": { "label": "$(( ))", "cmd": "arith-exp" }, "b": { "label": "$( )", "cmd": "cmd-subst" }, "items": [
+  { "q": "Work out 5 * 3 right on the command line", "ans": "a", "why": "Double parentheses mean arithmetic expansion." },
+  { "q": "Drop the output of another command into this one", "ans": "b", "why": "Single parentheses mean command substitution." } ] },
+ { "id": "head-tail", "ch": 6, "a": { "label": "head", "cmd": "head" }, "b": { "label": "tail", "cmd": "tail" }, "items": [
+  { "q": "Show the first five lines of a file", "ans": "a", "why": "head prints the start of its input." },
+  { "q": "Keep watching a log file as new lines arrive, with -f", "ans": "b", "why": "tail -f follows the end of a growing file." } ] },
+ { "id": "sort-uniq", "ch": 6, "a": { "label": "sort", "cmd": "sort" }, "b": { "label": "uniq", "cmd": "uniq" }, "items": [
+  { "q": "Put lines in order so that duplicate lines end up next to each other", "ans": "a", "why": "sort arranges lines; that is why it usually comes first." },
+  { "q": "Drop repeated lines, but only when the repeats are adjacent", "ans": "b", "why": "uniq expects sorted input and removes neighbouring duplicates." } ] },
+ { "id": "less-cat", "ch": 6, "a": { "label": "less", "cmd": "less" }, "b": { "label": "cat", "cmd": "cat" }, "items": [
+  { "q": "Page through a long file one screen at a time, then press q", "ans": "a", "why": "less is a pager." },
+  { "q": "Join several files and print them one after another", "ans": "b", "why": "cat concatenates files to standard output." } ] },
+ { "id": "links", "ch": 4, "a": { "label": "hard link", "cmd": "ln" }, "b": { "label": "symbolic link (ln -s)", "cmd": "ln" }, "items": [
+  { "q": "Can point to a directory", "ans": "b", "why": "Hard links may only reference files." },
+  { "q": "Can point to a file on a different disk partition", "ans": "b", "why": "A hard link cannot leave its own file system." },
+  { "q": "Looks exactly like the file itself in a listing, with no arrow", "ans": "a", "why": "A hard link is just another directory entry for the same data." },
+  { "q": "Becomes 'broken' if the file it points to is deleted", "ans": "b", "why": "A symlink only stores a path; remove the target and it points at nothing." } ] },
+ { "id": "type-which", "ch": 5, "a": { "label": "type", "cmd": "type" }, "b": { "label": "which", "cmd": "which" }, "items": [
+  { "q": "Tells you whether a name is a builtin, an alias, a function or a program", "ans": "a", "why": "type reports how the shell will interpret the name." },
+  { "q": "Only finds the location of an executable program", "ans": "b", "why": "which searches PATH for executables, so it says nothing about builtins or aliases." } ] },
+ { "id": "su-sudo", "ch": 9, "a": { "label": "su", "cmd": "su" }, "b": { "label": "sudo", "cmd": "sudo" }, "items": [
+  { "q": "Asks for your own password, not the superuser's", "ans": "b", "why": "sudo authenticates you as yourself." },
+  { "q": "Starts a new shell running as another user", "ans": "a", "why": "su launches a fresh shell that runs under the other user's identity." },
+  { "q": "The administrator can limit you to a few specific commands", "ans": "b", "why": "sudo's configuration controls exactly what each user may run." } ] },
+ { "id": "chown-chgrp", "ch": 9, "a": { "label": "chown", "cmd": "chown" }, "b": { "label": "chgrp", "cmd": "chgrp" }, "items": [
+  { "q": "Change only a file's group ownership", "ans": "b", "why": "chgrp changes the group and nothing else." },
+  { "q": "Change the owner, and optionally the group as user:group", "ans": "a", "why": "chown handles the owner and can set the group in the same step." } ] },
+ { "id": "kill-killall", "ch": 10, "a": { "label": "kill", "cmd": "kill" }, "b": { "label": "killall", "cmd": "killall" }, "items": [
+  { "q": "Signal every process running a given program name", "ans": "b", "why": "killall matches processes by name." },
+  { "q": "Signal one process identified by its PID or job number", "ans": "a", "why": "kill takes a PID (or a %job spec)." } ] },
+ { "id": "export-assign", "ch": 11, "a": { "label": "name=value", "cmd": "var-assign" }, "b": { "label": "export", "cmd": "export" }, "items": [
+  { "q": "Create a variable that only this shell can see", "ans": "a", "why": "A plain assignment makes a shell variable." },
+  { "q": "Make a variable available to programs started from this shell", "ans": "b", "why": "export passes the variable to child processes." } ] },
+ { "id": "aptget-dpkg", "ch": 14, "a": { "label": "apt-get", "cmd": "apt-get" }, "b": { "label": "dpkg", "cmd": "dpkg" }, "items": [
+  { "q": "Install a package from a repository, pulling in its dependencies", "ans": "a", "why": "High-level tools do metadata searches and dependency resolution." },
+  { "q": "Install a .deb file you already downloaded, without resolving dependencies", "ans": "b", "why": "dpkg is the low-level tool that works on package files directly." } ] },
+ { "id": "find-locate", "ch": 17, "a": { "label": "find", "cmd": "find" }, "b": { "label": "locate", "cmd": "locate" }, "items": [
+  { "q": "Very fast name search in a database, but may miss files created today", "ans": "b", "why": "updatedb usually rebuilds locate's database only once a day." },
+  { "q": "Select files by size, type or modification time", "ans": "a", "why": "find walks the tree and applies tests to each file." },
+  { "q": "A file created a minute ago is sure to show up", "ans": "a", "why": "find looks at the live file system, not a saved database." } ] },
+ { "id": "tar-gzip", "ch": 18, "a": { "label": "tar", "cmd": "tar" }, "b": { "label": "gzip", "cmd": "gzip" }, "items": [
+  { "q": "Bundle many files and directories into a single archive", "ans": "a", "why": "tar is the archiving tool." },
+  { "q": "Compress one file, replacing it with a .gz version", "ans": "b", "why": "gzip compresses and swaps the original for the compressed file." } ] },
+ { "id": "test-dbl", "ch": 27, "a": { "label": "[ ] / test", "cmd": "test" }, "b": { "label": "[[ ]]", "cmd": "dbl-bracket" }, "items": [
+  { "q": "Supports =~ to match a string against a regular expression", "ans": "b", "why": "=~ is one of the additions in bash's enhanced test." },
+  { "q": "The traditional form that behaves exactly like the test command", "ans": "a", "why": "[ expression ] is just another way to write test expression." } ] },
+ { "id": "while-until", "ch": 29, "a": { "label": "while", "cmd": "while" }, "b": { "label": "until", "cmd": "until" }, "items": [
+  { "q": "Keeps looping as long as the test command succeeds (exit status 0)", "ans": "a", "why": "while repeats while the test returns zero." },
+  { "q": "Keeps looping until the test command succeeds", "ans": "b", "why": "until stops as soon as it gets a zero exit status." } ] },
+ { "id": "all-star", "ch": 32, "a": { "label": "\"$@\"", "cmd": "all-params" }, "b": { "label": "\"$*\"", "cmd": "all-params" }, "items": [
+  { "q": "Passes each original argument along as its own word, spaces intact", "ans": "a", "why": "\"$@\" keeps every argument separate; it is the right choice in most scripts." },
+  { "q": "Joins all the arguments into one single word", "ans": "b", "why": "\"$*\" glues the arguments together into one string." } ] }
+];

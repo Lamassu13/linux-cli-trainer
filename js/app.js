@@ -21,7 +21,16 @@
   function $(s, r) { return (r || document).querySelector(s); }
   function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
   function el(html) { var t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
-  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var x = a[i]; a[i] = a[j]; a[j] = x; } return a; }
+  // Quiz randomness goes through rand() so a seed can reproduce a quiz exactly (daily challenge, challenge links).
+  var rand = Math.random;
+  function seeded(seed) {   // mulberry32: tiny, fast, good enough for shuffling questions
+    var t = seed >>> 0;
+    return function () { t += 0x6D2B79F5; var r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+  }
+  function withSeed(seed, fn) { var old = rand; rand = seeded(seed); try { return fn(); } finally { rand = old; } }
+  function newSeed() { return 100000 + Math.floor(Math.random() * 900000); }
+  function utcDay() { return Math.floor(Date.now() / 86400000); }
+  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(rand() * (i + 1)); var x = a[i]; a[i] = a[j]; a[j] = x; } return a; }
   function wait(ms) { return new Promise(function (r) { setTimeout(r, REDUCED ? 0 : ms); }); }
   function anim(node, frames, opts) {
     if (REDUCED || !node || !node.animate) return Promise.resolve();
@@ -163,7 +172,7 @@
   var ROUTES = [
     [/^\/?$/, viewHome, 'learn'], [/^\/module\/(.+)$/, viewModule, 'learn'], [/^\/lesson\/(.+)$/, viewLesson, 'learn'], [/^\/cmd\/(.+)$/, viewCmd, 'learn'],
     [/^\/terminal(?:\/(.+))?$/, viewTerminal, 'terminal'], [/^\/cards(?:\/(.+))?$/, viewCards, 'cards'], [/^\/quiz(?:\/(.+))?$/, viewQuiz, 'quiz'],
-    [/^\/speed$/, viewSpeed, 'quiz'], [/^\/cheats$/, viewCheats, 'cheats'], [/^\/progress$/, viewProgress, '']
+    [/^\/speed(?:\/(.+))?$/, viewSpeed, 'quiz'], [/^\/daily$/, viewDaily, 'quiz'], [/^\/cheats$/, viewCheats, 'cheats'], [/^\/progress$/, viewProgress, '']
   ];
   var backTo = null, lastHash = null;
   function setBack(h) { backTo = h; $('#backBtn').hidden = !h; }
@@ -221,6 +230,7 @@
       '<div class="row"><a class="btn primary" href="#/lesson/' + esc(nl.id) + '">' + (done ? 'Continue' : 'Start') + ': ' + esc(nl.title) + '</a>' +
       '<a class="btn" href="#/cards">' + (due ? 'Review ' + plural(due, 'card') : 'Flashcards') + '</a>' +
       (dueTaskIds().length ? '<a class="btn" href="#/terminal/' + esc(dueTaskIds()[0]) + '/review">Redo ' + plural(dueTaskIds().length, 'task') + '</a>' : '') +
+      '<a class="btn" href="#/daily">📅 ' + (SRS.state.daily[utcDay()] !== undefined ? 'Daily ✓ ' + SRS.state.daily[utcDay()] + '/8' : 'Daily challenge') + '</a>' +
       '<a class="btn ghost" href="#/terminal">Open terminal</a></div>' +
       '</div><div class="stats">' +
       '<div class="stat"><b>' + ls.level + '</b><span>Level</span><div class="xpbar" aria-hidden="true"><i style="transform:scaleX(' + (ls.into / ls.need).toFixed(3) + ')"></i></div></div>' +
@@ -1158,9 +1168,9 @@
     kinds.push('name');
     if ((c.examples || []).length) kinds.push('order', 'output');
     if (c.kind === 'cmd' || c.kind === 'builtin') kinds.push('fill');
-    var k = kinds[Math.floor(Math.random() * kinds.length)];
+    var k = kinds[Math.floor(rand() * kinds.length)];
     if (k === 'flag') {
-      var f = c.flags[Math.floor(Math.random() * c.flags.length)];
+      var f = c.flags[Math.floor(rand() * c.flags.length)];
       var dis = c.flags.filter(function (x) { return x !== f && x.d !== f.d; }).map(function (x) { return x.d; });
       if (dis.length < 3) dis = dis.concat(ALLC.filter(function (o) { return o !== c && (o.flags || []).length; }).map(function (o) { return o.flags[0].d; }));
       var ch = shuffle([f.d].concat(pick(dis, 3, [f.d])));
@@ -1173,7 +1183,7 @@
     if (k === 'output') {
       var exs = c.examples.filter(function (e) { var o = exOut(e); return o && o.split('\n').length <= 10 && o.length < 600; });
       if (exs.length) {
-        var e1 = exs[Math.floor(Math.random() * exs.length)], o1 = exOut(e1);
+        var e1 = exs[Math.floor(rand() * exs.length)], o1 = exOut(e1);
         var cand = [];
         pool.concat(ALLC).forEach(function (o) { (o.examples || []).forEach(function (e) { if (e.cmd !== e1.cmd && cand.indexOf(e.cmd) < 0 && exOut(e) !== o1) cand.push(e.cmd); }); });
         var near = cand.filter(function (x) { return x.split(/\s+/)[0] === e1.cmd.split(/\s+/)[0]; });
@@ -1186,23 +1196,41 @@
     var ch3 = shuffle([c.name].concat(names));
     return { type: 'mc', cmd: c.id, q: 'Which one does this: ' + c.summary + '?', choices: ch3, answer: ch3.indexOf(c.name), mono: true, explain: c.name + ' — ' + c.summary };
   }
-  function buildQuiz(scope, n) {
-    var cmds = scopeCmds(scope), qs = [];
-    var authored = [];
-    scopeLessons(scope).forEach(function (l) { (l.quiz || []).forEach(function (q) { authored.push(q); }); });
-    if (scope === 'weak') { var ids = cmds.map(function (c) { return c.id; }); LESSON_ORDER.forEach(function (l) { (l.quiz || []).forEach(function (q) { if (ids.indexOf(q.cmd) >= 0) authored.push(q); }); }); }
-    authored = shuffle(authored).slice(0, Math.ceil(n * 0.6));
-    qs = authored.map(function (q) { return Object.assign({}, q); });
-    var gens = shuffle(cmds), guard = 0;
-    while (qs.length < n && gens.length && guard++ < 200) qs.push(genQuestion(gens[guard % gens.length], cmds));
-    return shuffle(qs).slice(0, n);
+  /* Mix-ups: two-choice questions on things people confuse (CONTENT.pairs) */
+  var PAIRS = C.pairs || [];
+  function pairQuestions(filter) {
+    var out = [];
+    PAIRS.forEach(function (p) {
+      if (filter && !filter(p)) return;
+      p.items.forEach(function (it) {
+        var side = it.ans === 'a' ? p.a : p.b;
+        out.push({ type: 'mc', mix: p.a.label + ' or ' + p.b.label + '?', cmd: side.cmd, q: it.q, choices: [p.a.label, p.b.label], answer: it.ans === 'a' ? 0 : 1, mono: true, explain: it.why });
+      });
+    });
+    return out;
+  }
+  function buildQuiz(scope, n, seed) {
+    return withSeed(seed || newSeed(), function () {
+      var cmds = scopeCmds(scope), qs = [];
+      if (scope === 'pairs') return shuffle(pairQuestions()).slice(0, n);
+      var authored = [], m = MODS.get(scope);
+      scopeLessons(scope).forEach(function (l) { (l.quiz || []).forEach(function (q) { authored.push(q); }); });
+      if (scope === 'weak') { var ids = cmds.map(function (c) { return c.id; }); LESSON_ORDER.forEach(function (l) { (l.quiz || []).forEach(function (q) { if (ids.indexOf(q.cmd) >= 0) authored.push(q); }); }); }
+      var mixups = scope === 'mix' ? pairQuestions() : m ? pairQuestions(function (p) { return p.ch === m.n; })
+        : scope === 'weak' ? pairQuestions(function (p) { return cmds.some(function (c) { return c.id === p.a.cmd || c.id === p.b.cmd; }); }) : [];
+      authored = shuffle(authored).slice(0, Math.ceil(n * 0.5)).concat(shuffle(mixups).slice(0, Math.ceil(n * 0.2)));
+      qs = authored.map(function (q) { return Object.assign({}, q); });
+      var gens = shuffle(cmds), guard = 0;
+      while (qs.length < n && gens.length && guard++ < 200) qs.push(genQuestion(gens[guard % gens.length], cmds));
+      return shuffle(qs).slice(0, n);
+    });
   }
 
   function renderQuestion(host, q, onDone) {
     var answered = false;
     host.innerHTML = '';
     var box = el('<div class="card"></div>');
-    var qhtml = '<div class="q" id="qtext">' + esc(q.q) + '</div>';
+    var qhtml = (q.mix ? '<p class="eyebrow mixup">Mix-up · ' + esc(q.mix) + '</p>' : '') + '<div class="q" id="qtext">' + esc(q.q) + '</div>';
     if (q.type === 'output' && q.out) qhtml += '<pre class="output-box" aria-label="Output">' + esc(q.out) + '</pre>';
     box.innerHTML = qhtml;
     host.appendChild(box);
@@ -1302,12 +1330,32 @@
     b.addEventListener('pointercancel', function () { pid = null; dragging = false; b.classList.remove('dragging'); b.style.transform = ''; });
   }
 
-  function viewQuiz(root, scope) {
-    if (!scope) return quizPicker(root);
+  // #/quiz/<scope>[/<seed>[/<friendScore>]] — a seed rebuilds the exact same quiz (challenge links)
+  function viewQuiz(root, arg) {
+    if (!arg) return quizPicker(root);
+    var parts = arg.split('/'), scope = parts[0], seed = +parts[1] || 0, friend = parts[2] !== undefined && /^\d+$/.test(parts[2]) ? +parts[2] : null;
+    var title = scope === 'weak' ? 'Weak commands drill' : scope === 'mix' ? 'Mixed quiz' : scope === 'pairs' ? 'Mix-ups' : MODS.get(scope) ? 'Chapter ' + MODS.get(scope).n + ': ' + MODS.get(scope).title : LESSONS.get(scope) ? LESSONS.get(scope).title : 'Quiz';
+    runQuiz(root, { scope: scope, seed: seed || newSeed(), n: 10, title: title, friend: friend, shareable: scope !== 'weak' });
+  }
+  function viewDaily(root) {
+    var day = utcDay(), date = new Date(day * 86400000).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
+    runQuiz(root, { scope: 'mix', seed: day * 7919, n: 8, title: 'Daily challenge', sub: date + ' · the same 8 questions for everyone today', daily: day });
+  }
+  function shareLink(url, text, box) {
+    var done = function () { toast('Challenge link copied'); };
+    box.innerHTML = '<label class="sr-only" for="shareUrl">Challenge link</label><input id="shareUrl" class="share-url" type="text" readonly value="' + esc(url) + '">';
+    $('#shareUrl', box).addEventListener('focus', function (e) { e.target.select(); });
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) { navigator.share({ title: 'Linux CLI challenge', text: text, url: url }).catch(function () {}); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { $('#shareUrl', box).select(); });
+    else $('#shareUrl', box).select();
+  }
+  function runQuiz(root, o) {
+    var scope = o.scope;
     setBack('#/quiz');
-    var title = scope === 'weak' ? 'Weak commands drill' : scope === 'mix' ? 'Mixed quiz' : MODS.get(scope) ? 'Chapter ' + MODS.get(scope).n + ': ' + MODS.get(scope).title : LESSONS.get(scope) ? LESSONS.get(scope).title : 'Quiz';
-    var qs = buildQuiz(scope, 10);
-    root.innerHTML = '<h1>' + esc(title) + '</h1>';
+    var qs = buildQuiz(scope, o.n, o.seed);
+    root.innerHTML = '<h1>' + esc(o.title) + '</h1>' + (o.sub ? '<p class="muted">' + esc(o.sub) + '</p>' : '') +
+      (o.friend !== null && o.friend !== undefined ? '<div class="card challenge-banner"><b>🏆 A friend scored ' + o.friend + ' / ' + o.n + ' on this exact quiz.</b> Same questions, same order. Can you beat it?</div>' : '') +
+      (o.daily && SRS.state.daily[o.daily] !== undefined ? '<div class="card challenge-banner">You already did today’s challenge (' + SRS.state.daily[o.daily] + ' / ' + o.n + '). Practise again for fun; only the first score counts.</div>' : '');
     if (!qs.length) { root.innerHTML += '<div class="card"><p>' + (scope === 'weak' ? 'No weak commands yet — answer some quizzes first and your mistakes will collect here.' : 'No questions available here.') + '</p><a class="btn primary" href="#/quiz">Pick another quiz</a></div>'; return; }
     var top = el('<div class="quiz-top"><span class="count" aria-live="polite"></span><div class="progressbar" aria-hidden="true"><i style="transform:scaleX(0)"></i></div></div>');
     var host = el('<div></div>');
@@ -1324,14 +1372,23 @@
       anim(box, [{ opacity: 0, transform: 'translateX(14px)' }, { opacity: 1, transform: 'none' }], { duration: 240 });
     }
     function end() {
-      SRS.quizResult(scope, score, qs.length);
+      if (o.daily) { if (SRS.dailyResult(o.daily, score, qs.length)) toast('Daily challenge done · +' + (10 + score * 3) + ' XP', '📅'); }
+      else SRS.quizResult(scope, score, qs.length);
       var pct = Math.round(100 * score / qs.length);
       if (pct >= 80) celebrate();
       var miss = missed.map(function (q) { var c = CMDS.get(q.cmd); return c ? '<a class="chip" href="#/cmd/' + esc(c.id) + '">' + esc(c.name) + '</a>' : ''; }).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).join('');
-      host.innerHTML = '<div class="card" style="text-align:center"><div class="eyebrow">Result</div><h2 style="font-size:2.4rem">' + score + ' / ' + qs.length + '</h2><p>' + (pct >= 80 ? 'Excellent work!' : pct >= 50 ? 'Good progress. Review the misses below.' : 'Keep at it. These are now in your weak list.') + '</p>' +
+      var vs = o.friend === null || o.friend === undefined ? '' : '<p class="versus">' + (score > o.friend ? '🏆 You beat your friend (' + o.friend + ')!' : score === o.friend ? '🤝 A tie with your friend (' + o.friend + ').' : 'Your friend scored ' + o.friend + '. So close: try again!') + '</p>';
+      host.innerHTML = '<div class="card" style="text-align:center"><div class="eyebrow">' + (o.daily ? 'Daily challenge' : 'Result') + '</div><h2 style="font-size:2.4rem">' + score + ' / ' + qs.length + '</h2>' + vs + '<p>' + (pct >= 80 ? 'Excellent work!' : pct >= 50 ? 'Good progress. Review the misses below.' : 'Keep at it. These are now in your weak list.') + '</p>' +
         (miss ? '<p class="muted">Review:</p><div class="flags" style="justify-content:center">' + miss + '</div>' : '') +
-        '<div class="row" style="justify-content:center;margin-top:12px"><button class="btn primary" type="button" data-again>Try again</button><a class="btn" href="#/quiz/weak">Drill weak commands</a><a class="btn ghost" href="#/quiz">All quizzes</a></div></div>';
-      $('[data-again]', host).addEventListener('click', function () { route(); });
+        '<div class="row" style="justify-content:center;margin-top:12px">' + (o.shareable ? '<button class="btn primary" type="button" data-share>Challenge a friend</button>' : '') +
+        (o.daily ? '<a class="btn primary" href="#/quiz/pairs">Try the mix-ups</a>' : '<button class="btn" type="button" data-again>New questions</button>') +
+        '<a class="btn" href="#/quiz/weak">Drill weak commands</a><a class="btn ghost" href="#/quiz">All quizzes</a></div><div class="share-box"></div></div>';
+      var ag = $('[data-again]', host); if (ag) ag.addEventListener('click', function () { if (location.hash === '#/quiz/' + scope) route(); else location.hash = '#/quiz/' + scope; });
+      var sb = $('[data-share]', host);
+      if (sb) sb.addEventListener('click', function () {
+        var url = location.href.split('#')[0] + '#/quiz/' + scope + '/' + o.seed + '/' + score;
+        shareLink(url, 'I scored ' + score + '/' + qs.length + ' on "' + o.title + '" in the Linux CLI Trainer. Same questions for you. Can you beat me?', $('.share-box', host));
+      });
     }
     step();
   }
@@ -1340,7 +1397,9 @@
     root.innerHTML = '<h1>Quizzes</h1><p class="muted">Multiple choice, type-the-command, “which command produced this output?” and build-the-command puzzles.</p>' +
       '<div class="grid stagger"><a class="card mod" href="#/speed" style="--i:0"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">⚡</div><div><h3>Speed round</h3><p>60 seconds. Best: ' + SRS.state.speed.best + '</p></div></a>' +
       '<a class="card mod" href="#/quiz/weak" style="--i:1"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">🎯</div><div><h3>Weak commands</h3><p>' + (weak.length ? plural(weak.length, 'command') + ' to drill' : 'Built from your mistakes') + '</p></div></a>' +
-      '<a class="card mod" href="#/quiz/mix" style="--i:2"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">🎲</div><div><h3>Mixed</h3><p>Questions from the whole book</p></div></a></div>' +
+      '<a class="card mod" href="#/quiz/mix" style="--i:2"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">🎲</div><div><h3>Mixed</h3><p>Questions from the whole book</p></div></a>' +
+      '<a class="card mod" href="#/daily" style="--i:3"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">📅</div><div><h3>Daily challenge</h3><p>' + (SRS.state.daily[utcDay()] !== undefined ? '✓ Done today: ' + SRS.state.daily[utcDay()] + ' / 8' : 'Same 8 questions for everyone today') + '</p></div></a>' +
+      '<a class="card mod" href="#/quiz/pairs" style="--i:4"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">⚖️</div><div><h3>Mix-ups</h3><p>' + PAIRS.length + ' pairs people confuse: cp/mv, &gt;/&gt;&gt;, find/locate…</p></div></a></div>' +
       '<h2 class="section">By chapter</h2><div class="grid stagger">' + C.modules.map(function (m, i) {
         var best = (SRS.state.quiz[m.id] || {}).best;
         return '<a class="card mod" href="#/quiz/' + m.id + '" style="--i:' + Math.min(i, 12) + '">' + ring((best || 0) / 100, best === undefined ? '–' : best + '%') + '<div><span class="num">Chapter ' + m.n + '</span><h3>' + esc(m.title) + '</h3></div></a>';
@@ -1348,19 +1407,30 @@
   }
 
   /* ================= SPEED ROUND ================= */
-  function viewSpeed(root) {
+  // #/speed[/<seed>/<friendScore>/<chapters>] — a challenge link replays the same question sequence
+  function viewSpeed(root, arg) {
     setBack('#/quiz');
-    var studied = C.modules.filter(function (m) { return m.lessons.some(function (l) { return SRS.state.lessons[l.id]; }); });
-    var pool = (studied.length ? studied : C.modules.slice(0, 6)).reduce(function (a, m) { return a.concat(modCmds(m)); }, []);
-    root.innerHTML = '<h1>Speed round</h1><p class="muted">Answer as many as you can in 60 seconds. Keys 1–4 work too. Pool: ' + (studied.length ? 'chapters you have studied' : 'the first six chapters') + '.</p><div id="speedHost" class="card" style="text-align:center"><p>Best score: <b>' + SRS.state.speed.best + '</b></p><button class="btn primary" type="button" data-start>Start</button></div>';
-    var host = $('#speedHost'), timer = null;
+    var parts = (arg || '').split('/'), seed = +parts[0] || newSeed(), friend = /^\d+$/.test(parts[1] || '') ? +parts[1] : null;
+    var chs = (parts[2] || '').split('.').map(Number).filter(function (n) { return MODS.get('ch' + (n < 10 ? '0' : '') + n); });
+    var mods = chs.length ? chs.map(function (n) { return MODS.get('ch' + (n < 10 ? '0' : '') + n); })
+      : C.modules.filter(function (m) { return m.lessons.some(function (l) { return SRS.state.lessons[l.id]; }); });
+    if (!mods.length) mods = C.modules.slice(0, 6);
+    var pool = mods.reduce(function (a, m) { return a.concat(modCmds(m)); }, []), poolCode = mods.map(function (m) { return m.n; }).join('.');
+    root.innerHTML = '<h1>Speed round</h1><p class="muted">Answer as many as you can in 60 seconds. Keys 1–4 work too. Chapters: ' + esc(poolCode.replace(/\./g, ', ')) + '.</p>' +
+      (friend !== null ? '<div class="card challenge-banner"><b>🏆 A friend scored ' + friend + '.</b> You get the exact same questions in the same order. Go!</div>' : '') +
+      '<div id="speedHost" class="card" style="text-align:center"><p>Best score: <b>' + SRS.state.speed.best + '</b></p><button class="btn primary" type="button" data-start>Start</button></div>';
+    var host = $('#speedHost'), timer = null, rng = seeded(seed);
     onLeave(function () { clearInterval(timer); document.removeEventListener('keydown', key); });
     var cur = null, score = 0, left = 60;
     function key(e) { if (cur && /^[1-4]$/.test(e.key)) { var b = $$('.choice', host)[+e.key - 1]; if (b) b.click(); } }
     function q() {
-      var c = pool[Math.floor(Math.random() * pool.length)], useFlag = (c.flags || []).length && Math.random() < .5, item;
+      var old = rand; rand = rng;
+      try { return q1(); } finally { rand = old; }
+    }
+    function q1() {
+      var c = pool[Math.floor(rand() * pool.length)], useFlag = (c.flags || []).length && rand() < .5, item;
       if (useFlag) {
-        var f = c.flags[Math.floor(Math.random() * c.flags.length)], ch = shuffle([f.d].concat(pick(ALLC.filter(function (o) { return (o.flags || []).length; }).map(function (o) { return o.flags[Math.floor(Math.random() * o.flags.length)].d; }), 3, [f.d])));
+        var f = c.flags[Math.floor(rand() * c.flags.length)], ch = shuffle([f.d].concat(pick(ALLC.filter(function (o) { return (o.flags || []).length; }).map(function (o) { return o.flags[Math.floor(rand() * o.flags.length)].d; }), 3, [f.d])));
         item = { q: c.name + ' ' + f.f, mono: true, choices: ch, answer: ch.indexOf(f.d), cmd: c.id };
       } else {
         var ch2 = shuffle([c.name].concat(pick(pool.concat(ALLC).map(function (o) { return o.name; }).filter(function (n, i, a) { return n !== c.name && a.indexOf(n) === i; }), 3, [])));
@@ -1389,8 +1459,12 @@
           clearInterval(timer); cur = null;
           var nb = SRS.speedResult(score); if (score) SRS.addXP(score * 2, 'speed');
           if (nb && score) celebrate();
-          host.innerHTML = '<div class="eyebrow">Time!</div><h2 style="font-size:2.4rem">' + score + '</h2><p>' + (nb && score ? 'New best score! ' : 'Best: ' + SRS.state.speed.best + '. ') + '+' + score * 2 + ' XP</p><div class="row" style="justify-content:center"><button class="btn primary" type="button" data-again>Play again</button><a class="btn" href="#/quiz/weak">Drill weak commands</a></div>';
-          $('[data-again]', host).addEventListener('click', function () { route(); });
+          var vs = friend === null ? '' : '<p class="versus">' + (score > friend ? '🏆 You beat your friend (' + friend + ')!' : score === friend ? '🤝 A tie (' + friend + ').' : 'Your friend scored ' + friend + '. Rematch?') + '</p>';
+          host.innerHTML = '<div class="eyebrow">Time!</div><h2 style="font-size:2.4rem">' + score + '</h2>' + vs + '<p>' + (nb && score ? 'New best score! ' : 'Best: ' + SRS.state.speed.best + '. ') + '+' + score * 2 + ' XP</p><div class="row" style="justify-content:center"><button class="btn primary" type="button" data-share>Challenge a friend</button><button class="btn" type="button" data-again>Play again</button><a class="btn" href="#/quiz/weak">Drill weak commands</a></div><div class="share-box"></div>';
+          $('[data-again]', host).addEventListener('click', function () { if (location.hash === '#/speed') route(); else location.hash = '#/speed'; });
+          $('[data-share]', host).addEventListener('click', function () {
+            shareLink(location.href.split('#')[0] + '#/speed/' + seed + '/' + score + '/' + poolCode, 'I scored ' + score + ' in a 60-second Linux command speed round. Same questions for you. Beat it!', $('.share-box', host));
+          });
         }
       }, 1000);
     });
