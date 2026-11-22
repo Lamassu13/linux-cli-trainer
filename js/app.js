@@ -176,7 +176,7 @@
   var ROUTES = [
     [/^\/?$/, viewHome, 'learn'], [/^\/module\/(.+)$/, viewModule, 'learn'], [/^\/lesson\/(.+)$/, viewLesson, 'learn'], [/^\/cmd\/(.+)$/, viewCmd, 'learn'],
     [/^\/terminal(?:\/(.+))?$/, viewTerminal, 'terminal'], [/^\/cards(?:\/(.+))?$/, viewCards, 'cards'], [/^\/quiz(?:\/(.+))?$/, viewQuiz, 'quiz'],
-    [/^\/speed(?:\/(.+))?$/, viewSpeed, 'quiz'], [/^\/daily$/, viewDaily, 'quiz'], [/^\/man$/, viewMan, 'quiz'], [/^\/play$/, viewPlay, 'play'], [/^\/play\/(story|room|golf|boss)\/(.+)$/, viewGame, 'play'], [/^\/cheats$/, viewCheats, 'cheats'], [/^\/progress$/, viewProgress, '']
+    [/^\/speed(?:\/(.+))?$/, viewSpeed, 'quiz'], [/^\/daily$/, viewDaily, 'quiz'], [/^\/man$/, viewMan, 'quiz'], [/^\/play$/, viewPlay, 'play'], [/^\/audio(?:\/(.+))?$/, viewAudio, 'cards'], [/^\/play\/(story|room|golf|boss)\/(.+)$/, viewGame, 'play'], [/^\/cheats$/, viewCheats, 'cheats'], [/^\/progress$/, viewProgress, '']
   ];
   var backTo = null, lastHash = null;
   function setBack(h) { backTo = h; $('#backBtn').hidden = !h; }
@@ -1123,20 +1123,10 @@
 
   function viewCards(root, scope) {
     scope = scope || 'due';
-    var all = cardsFor(C.modules), deck;
-    if (scope === 'due') {
-      var seen = all.filter(function (c) { return SRS.state.cards[c.id] && SRS.isDue(c.id); });
-      var doneMods = C.modules.filter(function (m) { return m.lessons.some(function (l) { return SRS.state.lessons[l.id]; }); });
-      if (!doneMods.length) doneMods = [C.modules.filter(function (m) { return modPct(m) < 1; })[0] || C.modules[0]];
-      var fresh = cardsFor(doneMods).filter(function (c) { return !SRS.state.cards[c.id]; }).slice(0, 20);
-      deck = seen.concat(fresh);
-    } else if (scope === 'weak') {
-      var w = SRS.weak().concat(SRS.mistakes()); deck = all.filter(function (c) { return c.cmd && w.indexOf(c.cmd) >= 0; });
-    } else if (scope === 'all') deck = all;
-    else { var m = MODS.get(scope); deck = m ? cardsFor([m]) : []; }
+    var all = cardsFor(C.modules), deck = deckFor(scope);
     var set = SRS.state.settings, mode = set.mode === 'type' ? 'type' : 'flip', front = set.front || 'cmd';
     var dueT = SRS.dueTasks().filter(function (id) { return TASK_BY_ID[id]; });
-    root.innerHTML = '<h1>Flashcards</h1>' +
+    root.innerHTML = '<div class="title-row"><h1>Flashcards</h1><a class="btn small" href="#/audio/' + esc(scope) + '">🎧 Audio drill</a></div>' +
       (dueT.length ? '<a class="card task-due" href="#/terminal/' + esc(dueT[0]) + '/review"><span aria-hidden="true">🔁</span><span class="grow"><b>' + plural(dueT.length, 'task') + ' to redo from memory</b><small>Finished tasks come back so you can do them again without hints.</small></span><span aria-hidden="true">›</span></a>' : '') +
       '<div class="deck-bar"><label class="sr-only" for="deckSel">Deck</label><select id="deckSel">' +
       '<option value="due">Due today + new</option><option value="weak">Weak commands</option><option value="all">Everything (' + all.length + ')</option>' +
@@ -1745,6 +1735,8 @@
       '<div class="stats"><div class="stat"><b>' + ls.level + '</b><span>Level · ' + s.xp + ' XP</span><div class="xpbar"><i style="transform:scaleX(' + (ls.into / ls.need).toFixed(3) + ')"></i></div></div>' +
       '<div class="stat"><b>🔥 ' + SRS.streakNow() + '</b><span>Streak · best ' + s.streak.best + '</span></div><div class="stat"><b>' + Object.keys(s.lessons).length + '/' + LESSON_ORDER.length + '</b><span>Lessons</span></div></div>' +
       '<div class="stats" style="margin-top:10px"><div class="stat"><b>' + Object.keys(s.tasks).length + '</b><span>Tasks done</span></div><div class="stat"><b>' + s.counts.correct + '</b><span>Correct answers</span></div><div class="stat"><b>' + s.counts.reviews + '</b><span>Card reviews</span></div></div>' +
+      '<h2 class="section">Activity</h2><div class="card" id="actChart"></div>' +
+      '<h2 class="section">Memory strength</h2><div class="card" id="memChart"></div>' +
       '<h2 class="section">Chapters</h2><div class="grid stagger">' + C.modules.map(function (m, i) { return '<a class="card mod" style="--i:' + Math.min(i, 12) + '" href="#/module/' + m.id + '">' + ring(modPct(m)) + '<div><span class="num">Chapter ' + m.n + '</span><h3>' + esc(m.title) + '</h3></div></a>'; }).join('') + '</div>' +
       '<h2 class="section">Badges</h2><div class="badges">' + SRS.BADGES.map(function (b) { var got = s.badges[b.id]; return '<div class="badge' + (got ? ' got' : '') + '"><span class="ico" aria-hidden="true">' + b.icon + '</span><b>' + esc(b.name) + '</b><small>' + esc(b.d) + '</small><span class="sr-only">' + (got ? 'earned' : 'locked') + '</span></div>'; }).join('') + '</div>' +
       '<h2 class="section">Weak commands</h2>' + (weak.length ? '<div class="weak-list">' + weak.map(function (id) { var c = CMDS.get(id); return c ? '<a class="chip" href="#/cmd/' + esc(id) + '">' + esc(c.name) + '</a>' : ''; }).join('') + '</div><div class="row" style="margin-top:10px"><a class="btn primary" href="#/quiz/weak">Drill them</a><a class="btn" href="#/cards/weak">As flashcards</a></div>' : '<p class="muted">Nothing yet. Commands you miss twice or more show up here.</p>') +
@@ -1759,6 +1751,8 @@
       '<div class="card"><h3>About</h3><p class="muted">All lessons are paraphrased from <cite>' + esc(C.book) + '</cite> (No Starch Press). This trainer is a study companion, not a replacement for the book.</p><button class="btn danger small" type="button" data-reset>Reset all progress</button></div>';
     $$('[data-theme-set]', root).forEach(function (b) { b.addEventListener('click', function () { setTheme(b.dataset.themeSet); route(true); }); });
     promptStudio($('#promptStudio'));
+    activityChart($('#actChart'));
+    memoryChart($('#memChart'));
     $('[data-export]', root).addEventListener('click', function () {
       var json = SRS.exportJSON(), name = 'linux-cli-progress-' + new Date().toISOString().slice(0, 10) + '.json', blob = new Blob([json], { type: 'application/json' });
       var file = null; try { file = new File([blob], name, { type: 'application/json' }); } catch (e) { /* old Safari */ }
@@ -2032,6 +2026,300 @@
     onLeave(function () { over = true; clearInterval(timer); document.removeEventListener('keydown', key); });
     hud(); tick(); timer = setInterval(tick, 1000);
     next();
+  }
+
+  /* ================= PROGRESS CHARTS: activity heatmap + memory strength ================= */
+  var HEAT_WEEKS = 18;
+  function dayLabel(d, opts) { return new Date(d * 86400000).toLocaleDateString(undefined, Object.assign({ timeZone: 'UTC' }, opts || { weekday: 'short', month: 'short', day: 'numeric' })); }
+  function heatLevel(xp) { return xp <= 0 ? 0 : xp < 20 ? 1 : xp < 50 ? 2 : xp < 100 ? 3 : 4; }
+  // Sequential, one hue: darker green = more XP that day. Readout on hover/tap; the table holds the same numbers.
+  function activityChart(box) {
+    var act = SRS.state.activity, t = SRS.today(), first = t - (HEAT_WEEKS * 7 - 1);
+    var start = first - ((first + 4) % 7);            // day 0 (1970-01-01) was a Thursday: step back to Sunday
+    var cells = '', activeDays = 0, best = 0, bestDay = 0, weeks = [];
+    for (var d = start; d <= t; d++) {
+      var xp = act[d] || 0, wk = Math.floor((d - start) / 7);
+      if (!weeks[wk]) weeks[wk] = { from: d, xp: 0, days: 0 };
+      weeks[wk].xp += xp; if (xp) { weeks[wk].days++; activeDays++; }
+      if (xp > best) { best = xp; bestDay = d; }
+      cells += '<i class="h' + heatLevel(xp) + (d === t ? ' today' : '') + '" data-d="' + d + '"></i>';
+    }
+    var thisWeek = weeks[weeks.length - 1] ? weeks[weeks.length - 1].xp : 0;
+    var months = weeks.map(function (w, k) {   // label a column where a new month starts
+      var mo = new Date(w.from * 86400000).getUTCMonth(), prev = k ? new Date(weeks[k - 1].from * 86400000).getUTCMonth() : -1;
+      return mo !== prev ? '<span>' + esc(dayLabel(w.from, { month: 'short' })) + '</span>' : '<span></span>';
+    }).join('');
+    var summary = activeDays + ' active ' + (activeDays === 1 ? 'day' : 'days') + ' in the last ' + HEAT_WEEKS + ' weeks' + (best ? ' · best day ' + best + ' XP (' + dayLabel(bestDay) + ')' : '') + ' · this week ' + thisWeek + ' XP';
+    box.innerHTML = '<div class="heat-wrap"><div class="heat-months" aria-hidden="true" style="--cols:' + weeks.length + '">' + months + '</div>' +
+      '<div class="heat" style="--cols:' + weeks.length + '" tabindex="0" role="slider" aria-label="Daily activity. Arrow keys move by day and week." aria-valuemin="' + start + '" aria-valuemax="' + t + '" aria-valuenow="' + t + '" aria-valuetext="' + esc(summary) + '">' + cells + '</div></div>' +
+      '<div class="heat-foot"><span class="heat-readout">' + esc(summary) + '</span><span class="heat-legend" aria-hidden="true">Less <i class="h0"></i><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i> More</span></div>' +
+      '<details class="chart-table"><summary>Show as table</summary><table><thead><tr><th scope="col">Week of</th><th scope="col">XP</th><th scope="col">Active days</th></tr></thead><tbody>' +
+      weeks.slice().reverse().map(function (w) { return '<tr><td>' + esc(dayLabel(w.from, { month: 'short', day: 'numeric' })) + '</td><td>' + w.xp + '</td><td>' + w.days + '</td></tr>'; }).join('') + '</tbody></table></details>';
+    var grid = $('.heat', box), readout = $('.heat-readout', box), lit = null, kd = t;
+    function show(cell) {
+      if (lit) lit.classList.remove('on');
+      if (!cell || !cell.dataset.d) { readout.textContent = summary; lit = null; return; }
+      lit = cell; cell.classList.add('on');
+      var dd = +cell.dataset.d, xp = act[dd] || 0, txt = dayLabel(dd) + (dd === t ? ' (today)' : '') + ': ' + (xp ? xp + ' XP' : 'no activity');
+      if (readout.textContent !== txt) readout.textContent = txt;
+      grid.setAttribute('aria-valuenow', dd); grid.setAttribute('aria-valuetext', txt);
+    }
+    grid.addEventListener('keydown', function (e) {
+      var step = { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -7, ArrowRight: 7 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      kd = Math.max(start, Math.min(t, kd + step));
+      show(grid.querySelector('[data-d="' + kd + '"]'));
+    });
+    grid.addEventListener('focus', function () { show(grid.querySelector('[data-d="' + kd + '"]')); });
+    grid.addEventListener('pointermove', function (e) { if (e.target.dataset && e.target.dataset.d) show(e.target); });
+    grid.addEventListener('pointerdown', function (e) { show(e.target.dataset && e.target.dataset.d ? e.target : null); });
+    grid.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') show(null); });
+  }
+
+  // which command a flashcard belongs to: c:<cmd>, f:<cmd>:<flag>, x:<cmd>:<example>
+  function cardCmd(id) { var p = id.split(':'); return (p[0] === 'c' || p[0] === 'f' || p[0] === 'x') && CMDS.get(p[1]) ? p[1] : null; }
+  function memoryChart(box) {
+    var by = {};
+    Object.keys(SRS.state.cards).forEach(function (id) {
+      var cmd = cardCmd(id), m = cmd && SRS.memory(id);
+      if (m) { m.id = id; (by[cmd] = by[cmd] || []).push(m); }
+    });
+    var rows = Object.keys(by).map(function (cmd) {
+      var ms = by[cmd], weakest = ms.reduce(function (a, b) { return b.recall < a.recall ? b : a; });
+      return { cmd: cmd, recall: ms.reduce(function (s, m) { return s + m.recall; }, 0) / ms.length, n: ms.length, weakest: weakest };
+    }).sort(function (a, b) { return a.recall - b.recall; });
+    if (!rows.length) { box.innerHTML = '<p class="muted">Review some flashcards and your memory curves appear here: one per command, showing how fast it fades.</p>'; return; }
+    var top = rows.slice(0, 8), avg = rows.reduce(function (s, r) { return s + r.recall; }, 0) / rows.length;
+    box.innerHTML = '<p class="muted">Estimated chance you still remember each command today, from your flashcard reviews. Average across ' + plural(rows.length, 'command') + ': <b>' + Math.round(avg * 100) + '%</b>. Tap a command to see its forgetting curve.</p>' +
+      '<div class="mem-list">' + top.map(function (r, i) {
+        var c = CMDS.get(r.cmd), pct = Math.round(r.recall * 100);
+        return '<button type="button" class="mem-row" data-i="' + i + '" aria-pressed="' + (i === 0) + '" aria-label="' + esc(c.name + ': ' + pct + '% recall, ' + plural(r.n, 'card')) + '">' +
+          '<span class="mem-name">' + esc(c.name) + '</span><span class="mem-track"><i style="transform:scaleX(' + Math.max(.02, r.recall).toFixed(3) + ')"></i></span><span class="mem-val">' + pct + '%</span></button>';
+      }).join('') + '</div><div class="curve-box"></div>';
+    var cb = $('.curve-box', box);
+    function pick(i) {
+      $$('.mem-row', box).forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.i === i)); });
+      curveChart(cb, top[i]);
+    }
+    $$('.mem-row', box).forEach(function (b) { b.addEventListener('click', function () { pick(+b.dataset.i); }); });
+    pick(0);
+  }
+  // one command's forgetting curve: recall (%) against days since its last review; crosshair readout on hover/drag/arrow keys
+  function curveChart(box, row) {
+    var c = CMDS.get(row.cmd), m = row.weakest, now = SRS.today() - m.last, dueAt = m.due - m.last;
+    var span = Math.max(14, Math.ceil(Math.max(now, dueAt) * 1.5 / 7) * 7);
+    var W = Math.max(260, Math.min(640, box.clientWidth || 320)), H = 190, L = 36, R = 12, T = 14, B = 30, pw = W - L - R, ph = H - T - B;
+    var x = function (d) { return L + pw * d / span; }, y = function (r) { return T + ph * (1 - r); };
+    var pts = [], i, k;
+    for (k = 0; k <= 60; k++) { var dd = span * k / 60; pts.push(x(dd).toFixed(1) + ',' + y(m.at(dd)).toFixed(1)); }
+    var grid = [0, .25, .5, .75, 1].map(function (v) { return '<line class="g" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text class="ax" x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + v * 100 + '%</text>'; }).join('');
+    var room = Math.max(2, Math.floor(pw / 44)), step = [1, 2, 7, 14, 28, 56, 91, 182, 364].filter(function (s) { return span / s <= room; })[0] || 364, ticks = '';
+    for (i = 0; i <= span; i += step) ticks += '<text class="ax" x="' + x(i) + '" y="' + (H - 10) + '" text-anchor="middle">' + i + 'd</text>';
+    var p = m.id.split(':'), cardName = p[0] === 'f' ? c.name + ' ' + p.slice(2).join(':') : p[0] === 'x' ? c.name + ' example' : c.name;
+    box.innerHTML = '<h3 class="curve-title">Forgetting curve: <code>' + esc(cardName) + '</code>' + (row.n > 1 ? ' <small class="muted">(your weakest ' + esc(c.name) + ' card of ' + row.n + ')</small>' : '') + '</h3>' +
+      '<svg class="curve" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="' + span + '" aria-valuenow="' + Math.min(now, span) + '" aria-label="' + esc('Forgetting curve for ' + cardName + ', days since the last review. Arrow keys move along the curve.') + '" aria-valuetext="' + esc('Today: ' + Math.round(m.recall * 100) + '% recall, ' + plural(now, 'day') + ' after the last review') + '">' +
+      grid + ticks +
+      '<polygon class="area" points="' + x(0) + ',' + y(0) + ' ' + pts.join(' ') + ' ' + x(span) + ',' + y(0) + '"/>' +
+      '<polyline class="line" points="' + pts.join(' ') + '"/>' +
+      (dueAt <= span ? '<line class="due" x1="' + x(dueAt) + '" x2="' + x(dueAt) + '" y1="' + T + '" y2="' + (T + ph) + '"/><text class="ax" x="' + x(dueAt) + '" y="' + (T - 3) + '" text-anchor="middle">due</text>' : '') +
+      '<circle class="dot" cx="' + x(Math.min(now, span)) + '" cy="' + y(m.at(now)) + '" r="5"/>' +
+      '<g class="cross" style="display:none"><line class="cx" y1="' + T + '" y2="' + (T + ph) + '"/><circle class="cdot" r="4"/></g></svg>' +
+      '<p class="curve-read"></p>' +
+      '<p class="muted small-print">Today (dot): <b>' + Math.round(m.recall * 100) + '%</b>, ' + plural(now, 'day') + ' after your last review (box ' + m.box + ')' + (m.lapsed ? ', which you marked “Again”, so it starts low' : '') + '. Every review restarts the curve at 100% and makes it flatter, so the next gap can be longer.</p>' +
+      '<div class="row"><a class="btn small" href="#/cards/' + esc(c.module.id) + '">Review chapter ' + c.module.n + ' cards</a><a class="btn small ghost" href="#/cmd/' + esc(c.id) + '">Open lesson</a></div>';
+    var svg = $('.curve', box), cross = $('.cross', svg), cx = $('.cx', svg), cdot = $('.cdot', svg), read = $('.curve-read', box), cur = Math.min(now, span);
+    function at(d) {
+      cur = Math.max(0, Math.min(span, Math.round(d)));
+      cross.style.display = '';
+      cx.setAttribute('x1', x(cur)); cx.setAttribute('x2', x(cur));
+      cdot.setAttribute('cx', x(cur)); cdot.setAttribute('cy', y(m.at(cur)));
+      var txt = 'Day ' + cur + (cur === now ? ' (today)' : cur === dueAt ? ' (due)' : '') + ': ' + Math.round(m.at(cur) * 100) + '% recall';
+      if (read.textContent !== txt) read.textContent = txt;
+      svg.setAttribute('aria-valuenow', cur); svg.setAttribute('aria-valuetext', txt);
+    }
+    function fromEvent(e) { var r = svg.getBoundingClientRect(); at((e.clientX - r.left - L * r.width / W) / (pw * r.width / W) * span); }
+    svg.addEventListener('pointermove', fromEvent);
+    svg.addEventListener('pointerdown', fromEvent);
+    svg.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { cross.style.display = 'none'; read.textContent = ''; } });
+    svg.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight') { e.preventDefault(); at(cur + 1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); at(cur - 1); }
+    });
+    svg.addEventListener('focus', function () { at(cur); });
+  }
+
+  /* ================= AUDIO DRILL ================= */
+  // Hands-free flashcards: the device's speech engine reads the meaning, waits, then says the answer.
+  var SAY = { ls: 'L S', cd: 'C D', pwd: 'P W D', cp: 'C P', mv: 'M V', rm: 'R M', ln: 'L N', wc: 'W C', tr: 'T R', du: 'D U', df: 'D F', ps: 'P S',
+    su: 'S U', id: 'I D', nl: 'N L', bc: 'B C', dd: 'D D', ip: 'I P', bg: 'B G', fg: 'F G', vi: 'V I', lp: 'L P', lpr: 'L P R', lpq: 'L P Q',
+    lprm: 'L P R M', ssh: 'S S H', scp: 'S C P', sftp: 'S F T P', ftp: 'F T P', rpm: 'R P M', dpkg: 'D package', fsck: 'F S check', mkfs: 'make F S',
+    mkdir: 'make dir', chmod: 'change mode', chown: 'change owner', chgrp: 'change group', sudo: 'sue doo', umask: 'you mask', printf: 'print F',
+    gzip: 'G zip', gunzip: 'G unzip', bzip2: 'B zip 2', 'apt-get': 'apt get', 'apt-cache': 'apt cache', grep: 'grep', egrep: 'E grep', md5sum: 'M D 5 sum',
+    xargs: 'X args', mkfifo: 'make fifo', PS1: 'P S 1', pstree: 'P S tree', vmstat: 'V M stat', fdisk: 'F disk', wget: 'W get', lftp: 'L F T P' };
+  var SYM = { '|': 'pipe', '>': 'greater than', '>>': 'double greater than', '<': 'less than', '&': 'ampersand', '&&': 'and and', '||': 'double pipe',
+    ';': 'semicolon', '~': 'tilde', '*': 'star', '$': 'dollar', '#': 'hash', '!': 'bang', '/': 'slash', '\\': 'backslash', '"': 'quote', "'": 'single quote',
+    '[': 'open bracket', ']': 'close bracket', '{': 'open brace', '}': 'close brace', '(': 'open paren', ')': 'close paren', '=': 'equals', '.': 'dot',
+    ':': 'colon', '^': 'caret', '%': 'percent', '@': 'at', '?': 'question mark', '`': 'backtick', '-': 'dash', '+': 'plus', ',': 'comma', '_': 'underscore' };
+  function speakable(s) {
+    return String(s).split(/(\s+)/).map(function (w) {
+      if (!w || /^\s+$/.test(w)) return ' ';
+      if (SAY[w]) return SAY[w];
+      if (SYM[w]) return SYM[w];
+      var k = w.match(/^(Ctrl|Alt)-(.+)$/i);   // readline keys: "control A", "alt F"
+      if (k) return (k[1].toLowerCase() === 'ctrl' ? 'control ' : 'alt ') + (k[2].length === 1 ? k[2].toUpperCase() : speakable(k[2]));
+      var m = w.match(/^(--?)([A-Za-z][\w-]*)(=.*)?$/);
+      if (m) return (m[1] === '--' ? 'dash dash ' : 'dash ') + (m[1] === '-' && m[2].length <= 3 ? m[2].split('').join(' ').toUpperCase() : m[2].replace(/-/g, ' ')) + (m[3] ? ' equals ' + speakable(m[3].slice(1)) : '');
+      return w.replace(/[^\w\s]/g, function (ch) { return ' ' + (SYM[ch] || '') + ' '; });
+    }).join('').replace(/\s+/g, ' ').trim();
+  }
+  function audioPrompt(it) {
+    if (it.kind === 'x') return 'Fill in the blank. ' + speakable(it.front.replace('___', ' blank ')) + '.';
+    if (it.kind === 'c') return 'Which command: ' + it.back;
+    if (it.kind === 'f') return 'Which option of ' + speakable(it.name) + ': ' + it.back;
+    return 'Which key or symbol: ' + it.back;
+  }
+  function deckFor(scope) {
+    var all = cardsFor(C.modules);
+    if (scope === 'due') {
+      var seen = all.filter(function (c) { return SRS.state.cards[c.id] && SRS.isDue(c.id); });
+      var doneMods = C.modules.filter(function (m) { return m.lessons.some(function (l) { return SRS.state.lessons[l.id]; }); });
+      if (!doneMods.length) doneMods = [C.modules.filter(function (m) { return modPct(m) < 1; })[0] || C.modules[0]];
+      return seen.concat(cardsFor(doneMods).filter(function (c) { return !SRS.state.cards[c.id]; }).slice(0, 20));
+    }
+    if (scope === 'weak') { var w = SRS.weak().concat(SRS.mistakes()); return all.filter(function (c) { return c.cmd && w.indexOf(c.cmd) >= 0; }); }
+    if (scope === 'all') return all;
+    var m = MODS.get(scope); return m ? cardsFor([m]) : [];
+  }
+  function viewAudio(root, scope) {
+    setBack('#/cards');
+    var synth = window.speechSynthesis, Recog = window.SpeechRecognition || window.webkitSpeechRecognition;
+    root.innerHTML = '<h1>🎧 Audio drill</h1><p class="muted">Hands-free flashcards: I read the meaning, give you time to think, then say the answer. Rate it by tapping, with the keys, or by saying “yes” or “no”.</p>';
+    if (!synth || !window.SpeechSynthesisUtterance) { root.innerHTML += '<div class="card"><p>This browser has no speech engine, so the audio drill isn’t available here. Try Safari or Chrome.</p><a class="btn" href="#/cards">Back to flashcards</a></div>'; return; }
+    scope = scope || 'due';
+    var set = SRS.state.settings, opt = { think: 5, rate: 1, mode: 'rate', voice: false };
+    try { Object.assign(opt, JSON.parse(localStorage.getItem('lcl.audio') || '{}')); } catch (e) { /* defaults */ }
+    var deck = shuffle(deckFor(scope)).slice(0, 25);
+    root.innerHTML += '<div class="card audio-setup"><div class="deck-bar"><label class="sr-only" for="aDeck">Deck</label><select id="aDeck"><option value="due">Due today + new</option><option value="weak">Weak commands</option><option value="all">Everything</option>' +
+      C.modules.map(function (m) { return '<option value="' + m.id + '">Chapter ' + m.n + ': ' + esc(m.title) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="audio-opts"><div class="seg" role="group" aria-label="Thinking time">' + [3, 5, 8].map(function (s) { return '<button type="button" data-think="' + s + '" aria-pressed="' + (opt.think === s) + '">' + s + ' s</button>'; }).join('') + '</div>' +
+      '<div class="seg" role="group" aria-label="Speaking speed">' + [[0.8, 'Slow'], [1, 'Normal'], [1.2, 'Fast']].map(function (r) { return '<button type="button" data-rate="' + r[0] + '" aria-pressed="' + (opt.rate === r[0]) + '">' + r[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="seg" role="group" aria-label="Mode"><button type="button" data-mode="rate" aria-pressed="' + (opt.mode === 'rate') + '">Rate each</button><button type="button" data-mode="listen" aria-pressed="' + (opt.mode === 'listen') + '">Listen only</button></div>' +
+      (Recog ? '<label class="row voice-opt"><input type="checkbox" id="aVoice"' + (opt.voice ? ' checked' : '') + '> Answer “yes” / “no” by voice <small class="muted">(uses your browser’s speech service)</small></label>' : '') + '</div></div>' +
+      '<div class="audio-stage card"><p class="audio-phase eyebrow" role="status">Ready</p><div class="audio-q">' + plural(deck.length, 'card') + ' in this session.</div><div class="audio-a mono"></div></div>' +
+      '<div class="audio-controls row"><button class="btn primary" type="button" data-play>▶ Start</button><button class="btn" type="button" data-skip disabled>Next ›</button></div>' +
+      '<div class="audio-grade row" hidden><button class="btn grade again" type="button" data-ag="0">✗ Again <kbd>1</kbd></button><button class="btn grade good" type="button" data-ag="2">✓ Knew it <kbd>2</kbd></button></div>' +
+      '<p class="count audio-count" aria-live="off"></p>';
+    $('#aDeck').value = scope;
+    $('#aDeck').addEventListener('change', function (e) { location.hash = '#/audio/' + e.target.value; });
+    function saveOpt() { try { localStorage.setItem('lcl.audio', JSON.stringify(opt)); } catch (e) { /* per-device preference only */ } }
+    $$('[data-think]', root).forEach(function (b) { b.addEventListener('click', function () { opt.think = +b.dataset.think; saveOpt(); $$('[data-think]', root).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
+    $$('[data-rate]', root).forEach(function (b) { b.addEventListener('click', function () { opt.rate = +b.dataset.rate; saveOpt(); $$('[data-rate]', root).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
+    $$('[data-mode]', root).forEach(function (b) { b.addEventListener('click', function () { opt.mode = b.dataset.mode; saveOpt(); $$('[data-mode]', root).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
+    var vc = $('#aVoice'); if (vc) vc.addEventListener('change', function () { opt.voice = vc.checked; saveOpt(); });
+    if (!deck.length) { $('.audio-q', root).textContent = 'No cards to drill here right now. Pick another deck.'; $('[data-play]', root).disabled = true; return; }
+
+    var phase = $('.audio-phase', root), qEl = $('.audio-q', root), aEl = $('.audio-a', root), playB = $('[data-play]', root), skipB = $('[data-skip]', root), gradeRow = $('.audio-grade', root), countEl = $('.audio-count', root);
+    var i = 0, running = false, run = 0, waitGrade = null, rec = null, lock = null, known = 0, done = 0;
+    function acquire() {   // keep the screen awake while the drill runs (released on pause/leave; the browser drops it when hidden)
+      try {
+        if (!navigator.wakeLock || lock) return;
+        navigator.wakeLock.request('screen').then(function (l) { if (running) lock = l; else l.release().catch(function () {}); }).catch(function () {});
+      } catch (e) { /* optional */ }
+    }
+    function onVis() { if (document.visibilityState === 'visible' && running) { lock = null; acquire(); } }
+    document.addEventListener('visibilitychange', onVis);
+    function sleep(ms, r) { return new Promise(function (res) { var t = setTimeout(res, ms); (sleepers[r] = sleepers[r] || []).push(function () { clearTimeout(t); res(); }); }); }
+    var sleepers = {};
+    function cancelSleeps() { Object.keys(sleepers).forEach(function (k) { sleepers[k].forEach(function (f) { f(); }); }); sleepers = {}; }
+    function say(text) {
+      return new Promise(function (res) {
+        var u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; u.rate = opt.rate;
+        var t = setTimeout(res, 2500 + text.length * 120);   // some engines never fire onend
+        u.onend = u.onerror = function () { clearTimeout(t); res(); };
+        synth.speak(u);
+      });
+    }
+    function listenYesNo() {
+      return new Promise(function (res) {
+        if (!Recog || !opt.voice) return res(null);
+        if (rec) { try { rec.abort(); } catch (e) { /* ignore */ } }
+        try {
+          rec = new Recog(); rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 3;
+          var settled = false, finish = function (v) { if (!settled) { settled = true; try { rec.abort(); } catch (e) { /* already stopped */ } res(v); } };
+          rec.onresult = function (e) {
+            var said = Array.prototype.map.call(e.results[0], function (a) { return a.transcript.toLowerCase(); }).join(' ');
+            finish(/\b(yes|yeah|yep|good|got it|knew|know)\b/.test(said) ? 2 : /\b(no|nope|again|missed|wrong)\b/.test(said) ? 0 : null);
+          };
+          rec.onerror = rec.onend = function () { finish(null); };
+          rec.start();
+          setTimeout(function () { finish(null); }, 6000);
+        } catch (e) { res(null); }
+      });
+    }
+    function grade(g) {
+      var it = deck[i];
+      if (!it || !waitGrade) return;
+      SRS.grade(it.id, g); if (it.cmd) SRS.answer(it.cmd, g > 0);
+      done++; if (g > 0) known++;
+      i++;                                     // move on now, so pausing during the feedback can't grade this card twice
+      if (rec) { try { rec.abort(); } catch (e) { /* ignore */ } }
+      var w = waitGrade; waitGrade = null; w();
+    }
+    async function loop(r) {
+      while (running && r === run && i < deck.length) {
+        var it = deck[i];
+        countEl.textContent = 'Card ' + (i + 1) + ' of ' + deck.length + (done ? ' · ' + known + ' of ' + done + ' known' : '');
+        aEl.textContent = ''; gradeRow.hidden = true;
+        phase.textContent = 'Question';
+        qEl.textContent = it.kind === 'x' ? 'Fill in the blank: ' + it.front : it.kind === 'f' ? 'Which option of ' + it.name + ': ' + it.back : it.kind === 'c' ? 'Which command: ' + it.back : 'Which key or symbol: ' + it.back;
+        await say(audioPrompt(it)); if (!running || r !== run) return;
+        phase.textContent = 'Think…';
+        await sleep(opt.think * 1000, r); if (!running || r !== run) return;
+        phase.textContent = 'Answer';
+        aEl.textContent = it.kind === 'x' ? it.back : it.ans;
+        await say('The answer is: ' + speakable(it.ans)); if (!running || r !== run) return;
+        if (opt.mode === 'rate') {
+          phase.textContent = 'Did you know it?'; gradeRow.hidden = false;
+          var card = { idx: i, heard: null };
+          var graded = new Promise(function (res) { waitGrade = res; });
+          listenYesNo().then(function (v) {   // only counts for this card, in this run
+            if (v === null || r !== run || i !== card.idx || !waitGrade) return;
+            card.heard = v; grade(v);
+          });
+          await graded; if (!running || r !== run) return;
+          if (card.heard !== null) await say(card.heard ? 'Good.' : 'Again later.');
+        } else {
+          await sleep(1500, r);
+          if (!running || r !== run) return;
+          i++;
+        }
+      }
+      if (i >= deck.length) {
+        running = false; release();
+        phase.textContent = 'Done'; qEl.textContent = opt.mode === 'rate' ? 'Session over: ' + known + ' of ' + done + ' known.' : 'Session over.'; aEl.textContent = ''; gradeRow.hidden = true;
+        playB.textContent = '↻ Again'; playB.onclick = function () { route(); }; skipB.disabled = true;
+        say('Session over.'); if (opt.mode === 'rate' && done) celebrate();
+      }
+    }
+    function release() { if (lock) { lock.release().catch(function () {}); lock = null; } }
+    function stop() { running = false; run++; cancelSleeps(); synth.cancel(); if (rec) { try { rec.abort(); } catch (e) { /* ignore */ } } if (waitGrade) { var w = waitGrade; waitGrade = null; w(); } release(); }
+    playB.onclick = function () {
+      if (running) { stop(); playB.textContent = '▶ Resume'; phase.textContent = 'Paused'; skipB.disabled = true; return; }
+      running = true; run++; playB.textContent = '⏸ Pause'; skipB.disabled = false;
+      acquire();
+      loop(run);
+    };
+    skipB.addEventListener('click', function () { if (!running) return; stop(); i++; running = true; run++; acquire(); loop(run); });
+    $$('[data-ag]', root).forEach(function (b) { b.addEventListener('click', function () { grade(+b.dataset.ag); }); });
+    function key(e) {
+      if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      if (e.key === '1' || e.key === 'ArrowLeft') grade(0);
+      else if (e.key === '2' || e.key === 'ArrowRight') grade(2);
+      else if (e.key === ' ' && !(e.target.closest && e.target.closest('button,a'))) { e.preventDefault(); playB.click(); }
+    }
+    document.addEventListener('keydown', key);
+    onLeave(function () { stop(); document.removeEventListener('keydown', key); document.removeEventListener('visibilitychange', onVis); });
   }
 
   /* ================= PROMPT STUDIO ================= */

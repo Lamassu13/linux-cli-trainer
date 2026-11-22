@@ -15,7 +15,7 @@
 
   function today() { var d = new Date(); return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000); }
   function blank() {
-    return { v: 1, cards: {}, treview: {}, daily: {}, games: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, xp: 0, streak: { last: 0, n: 0, best: 0 },
+    return { v: 1, cards: {}, treview: {}, daily: {}, games: {}, activity: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, xp: 0, streak: { last: 0, n: 0, best: 0 },
       badges: {}, speed: { best: 0 }, counts: { run: 0, reviews: 0, correct: 0, perfect: 0, recalled: 0, treviews: 0, dailies: 0 },
       settings: { theme: 'system', front: 'cmd', mode: 'flip', explain: true, ps1: '' } };
   }
@@ -25,9 +25,15 @@
   function num(x) { x = Number(x); return isFinite(x) ? x : 0; }
   function obj(x) { return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; }
   function merge(s) {
-    var b = blank(), o = { v: 1, cards: {}, treview: {}, daily: {}, games: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, badges: {} };
+    var b = blank(), o = { v: 1, cards: {}, treview: {}, daily: {}, games: {}, activity: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, badges: {} };
     ['cards', 'treview'].forEach(function (f) {
-      Object.keys(obj(s[f])).forEach(function (k) { var c = s[f][k]; if (Array.isArray(c)) o[f][k] = [Math.max(1, Math.min(5, num(c[0]))), num(c[1])]; });
+      Object.keys(obj(s[f])).forEach(function (k) {
+        var c = s[f][k]; if (!Array.isArray(c)) return;
+        var box = Math.max(1, Math.min(5, num(c[0]))), due = num(c[1]);
+        o[f][k] = [box, due];
+        // last review day (older saves lack it: estimate from the box's interval)
+        if (f === 'cards') o[f][k].push(c[2] !== undefined ? num(c[2]) : due - INTERVALS[box - 1]);
+      });
     });
     Object.keys(obj(s.stats)).forEach(function (k) { var x = obj(s.stats[k]); o.stats[k] = { ok: num(x.ok), bad: num(x.bad), last: num(x.last) }; });
     ['lessons', 'tasks', 'badges'].forEach(function (f) { Object.keys(obj(s[f])).forEach(function (k) { o[f][k] = num(s[f][k]) || 1; }); });
@@ -38,6 +44,14 @@
     });
     Object.keys(obj(s.daily)).forEach(function (k) { if (/^\d+$/.test(k)) o.daily[k] = num(s.daily[k]); });
     Object.keys(obj(s.quiz)).forEach(function (k) { var x = obj(s.quiz[k]); o.quiz[k] = { best: num(x.best), runs: num(x.runs) }; });
+    Object.keys(obj(s.activity)).forEach(function (k) { if (/^\d+$/.test(k)) o.activity[k] = Math.max(0, num(s.activity[k])); });
+    if (!Object.keys(o.activity).length) {   // older saves: rebuild a rough history from the days things were completed
+      var mark = function (d, xp) { d = num(d); if (d > 0) o.activity[d] = (o.activity[d] || 0) + xp; };
+      Object.keys(o.lessons).forEach(function (k) { mark(o.lessons[k], 10); });
+      Object.keys(o.tasks).forEach(function (k) { mark(o.tasks[k], 20); });
+      Object.keys(o.games).forEach(function (k) { mark(o.games[k].done, 25); });
+      Object.keys(o.daily).forEach(function (k) { mark(k, 10); });
+    }
     o.xp = num(s.xp);
     var st = obj(s.streak); o.streak = { last: num(st.last), n: num(st.n), best: num(st.best) };
     o.speed = { best: num(obj(s.speed).best) };
@@ -77,8 +91,11 @@
   function levelSpan() { var l = level(), lo = 50 * Math.pow(l - 1, 2), hi = 50 * Math.pow(l, 2); return { level: l, into: state.xp - lo, need: hi - lo }; }
 
   function addXP(n, why) {
-    var before = level();
-    state.xp += n; touchStreak(); save();
+    var before = level(), d = today();
+    state.xp += n; touchStreak();
+    state.activity[d] = (state.activity[d] || 0) + n;
+    Object.keys(state.activity).forEach(function (k) { if (+k < d - 400) delete state.activity[k]; });
+    save();
     emit('xp', { n: n, why: why });
     if (level() > before) emit('level', { level: level() });
     checkBadges();
@@ -96,7 +113,7 @@
   function level4(g) { return g === true ? GOOD : g === false ? AGAIN : Math.max(0, Math.min(3, g | 0)); }
   function grade(id, g) {
     g = level4(g);
-    state.cards[id] = schedule(state.cards[id], g, INTERVALS);
+    state.cards[id] = schedule(state.cards[id], g, INTERVALS).concat([today()]);
     state.counts.reviews++;
     addXP(2, 'review');
     return state.cards[id][1] - today();          // days until it comes back
@@ -104,6 +121,18 @@
   // days until the card would come back for each grade (shown on the buttons)
   function preview(id) { return [0, 1, 2, 3].map(function (g) { return schedule(state.cards[id], g, INTERVALS)[1] - today(); }); }
   function recalled() { state.counts.recalled++; save(); }
+  // Forgetting curve: chance you still recall a card, R(t) = exp(-t / S), t = days since the last review.
+  // S (stability) is set so recall is about 85% on the card's due day: longer intervals mean flatter curves.
+  var RECALL_AT_DUE = 0.85;
+  function memory(id) {
+    var c = state.cards[id];
+    if (!c) return null;
+    var last = c[2] !== undefined ? c[2] : c[1] - INTERVALS[c[0] - 1], gap = Math.max(1, c[1] - last);
+    // "Again" schedules the card for the same day it was reviewed: you just failed it, so it starts at half strength
+    var lapsed = c[1] <= last, base = lapsed ? 0.5 : 1;
+    var S = gap / -Math.log(RECALL_AT_DUE), t = Math.max(0, today() - last);
+    return { box: c[0], due: c[1], last: last, lapsed: lapsed, stability: S, recall: base * Math.exp(-t / S), at: function (days) { return base * Math.exp(-Math.max(0, days) / S); } };
+  }
   function isDue(id) { var c = state.cards[id]; return !c || c[1] <= today(); }
   function box(id) { var c = state.cards[id]; return c ? c[0] : 0; }
 
@@ -220,7 +249,7 @@
     on: function (fn) { listeners.push(fn); },
     setContent: function (c) { content = c; },
     level: level, levelSpan: levelSpan, streakNow: streakNow, addXP: addXP,
-    grade: grade, preview: preview, recalled: recalled, isDue: isDue, box: box, INTERVALS: INTERVALS,
+    grade: grade, preview: preview, memory: memory, recalled: recalled, isDue: isDue, box: box, INTERVALS: INTERVALS,
     reviewTask: reviewTask, dueTasks: dueTasks, dailyResult: dailyResult, gameResult: gameResult, gameDone: gameDone,
     answer: answer, weak: weak, mistakes: mistakes,
     lessonDone: lessonDone, taskDone: taskDone, quizResult: quizResult, ran: ran, speedResult: speedResult,

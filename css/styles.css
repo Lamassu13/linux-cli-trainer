@@ -615,3 +615,60 @@ body.kb-open .term-page.game-page .term-side { max-height: calc(var(--term-h, 70
   .term-page.game-page .term-side { max-height: calc(var(--term-h, 70vh) * .38); }
   .game-page .game-intro { font-size: .88rem; margin-bottom: 6px; }
 }
+
+/* ---------- progress charts ---------- */
+:root { --heat0: #1a2230; --heat1: #1f6b40; --heat2: #279a55; --heat3: #47c97a; --heat4: #8ff0b4; --chart-line: #3fd17a; --chart-area: rgba(63, 209, 122, .10); --chart-grid: #263244; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --heat0: #dce3eb; --heat1: #74c695; --heat2: #3fa566; --heat3: #21814a; --heat4: #0e5a2d; --chart-line: #13883f; --chart-area: rgba(19, 136, 63, .10); --chart-grid: #d5dde6; } }
+:root[data-theme="light"] { --heat0: #dce3eb; --heat1: #74c695; --heat2: #3fa566; --heat3: #21814a; --heat4: #0e5a2d; --chart-line: #13883f; --chart-area: rgba(19, 136, 63, .10); --chart-grid: #d5dde6; }
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: .5em; }
+.title-row h1 { margin: 0; }
+.heat-wrap { overflow-x: auto; }
+.heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, minmax(0, 1fr)); grid-template-columns: repeat(var(--cols, 19), minmax(10px, 1fr)); gap: 3px; min-width: 260px; touch-action: manipulation; border-radius: 6px; }
+.heat:focus-visible { outline-offset: 4px; }
+.heat-months { display: grid; grid-template-columns: repeat(var(--cols, 19), minmax(10px, 1fr)); gap: 3px; min-width: 260px; font-size: .7rem; color: var(--muted); margin-bottom: 4px; white-space: nowrap; }
+.heat-months span { overflow: visible; }
+.heat i { display: block; aspect-ratio: 1; border-radius: 3px; background: var(--heat0); }
+.heat i.h1, .heat-legend i.h1 { background: var(--heat1); } .heat i.h2, .heat-legend i.h2 { background: var(--heat2); }
+.heat i.h3, .heat-legend i.h3 { background: var(--heat3); } .heat i.h4, .heat-legend i.h4 { background: var(--heat4); }
+.heat i.today { box-shadow: inset 0 0 0 2px var(--fg); }
+.heat i.on { box-shadow: 0 0 0 2px var(--accent2); }
+.heat-foot { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; margin-top: 10px; font-size: .86rem; }
+.heat-readout { color: var(--fg); min-height: 1.4em; }
+.heat-legend { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); font-size: .78rem; }
+.heat-legend i { width: 12px; height: 12px; border-radius: 3px; background: var(--heat0); display: inline-block; }
+.chart-table { margin-top: 10px; font-size: .88rem; }
+.chart-table summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent2); }
+.chart-table table { border-collapse: collapse; width: 100%; max-width: 420px; }
+.chart-table th, .chart-table td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.chart-table td + td, .chart-table th + th { text-align: right; font-variant-numeric: tabular-nums; }
+.mem-list { display: grid; gap: 4px; margin: 10px 0; }
+.mem-row { display: grid; grid-template-columns: minmax(70px, 30%) minmax(0, 1fr) 3.2em; gap: 10px; align-items: center; min-height: 44px; padding: 4px 8px; border: 1px solid transparent; border-radius: 10px; background: transparent; text-align: left; }
+.mem-row[aria-pressed="true"] { border-color: var(--line); background: var(--bg3); }
+.mem-name { font-family: var(--mono); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mem-track { height: 12px; border-radius: 0 4px 4px 0; background: transparent; overflow: hidden; }
+.mem-track i { display: block; height: 100%; background: var(--accent2); border-radius: 0 4px 4px 0; transform-origin: left; }
+.mem-val { text-align: right; font-variant-numeric: tabular-nums; font-size: .9rem; color: var(--fg); }
+.curve-title { font-size: .95rem; margin: 10px 0 6px; }
+.curve-title code { color: var(--fg); }
+svg.curve { display: block; max-width: 100%; height: auto; touch-action: pan-y; overflow: visible; }
+svg.curve .g { stroke: var(--chart-grid); stroke-width: 1; }
+svg.curve .ax { fill: var(--muted); font: 11px var(--font); stroke: none; }
+svg.curve .line { fill: none; stroke: var(--chart-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+svg.curve .area { fill: var(--chart-area); stroke: none; }
+svg.curve .due { stroke: var(--muted); stroke-width: 1; }
+svg.curve .dot { fill: var(--chart-line); stroke: var(--bg2); stroke-width: 2; }
+svg.curve .cx { stroke: var(--muted); stroke-width: 1; }
+svg.curve .cdot { fill: var(--bg2); stroke: var(--chart-line); stroke-width: 2; }
+.curve-read { min-height: 1.4em; font-size: .9rem; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.small-print { font-size: .86rem; }
+
+/* ---------- audio drill ---------- */
+.audio-opts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.voice-opt { gap: 8px; min-height: 44px; font-size: .92rem; }
+.voice-opt input { width: 22px; height: 22px; }
+.audio-stage { margin-top: 14px; min-height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px; }
+.audio-q { font-size: 1.15rem; max-width: 36em; }
+.audio-a { font: 700 clamp(1.3rem, 6vw, 2rem) var(--mono); color: var(--c-cmd); overflow-wrap: anywhere; min-height: 1.2em; }
+.audio-controls, .audio-grade { justify-content: center; margin-top: 12px; }
+.audio-grade .btn { min-width: 140px; }
+.audio-count { text-align: center; }

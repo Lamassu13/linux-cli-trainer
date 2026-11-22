@@ -20,6 +20,8 @@ An interactive, offline-capable web app for learning and memorizing the Linux co
 | Daily challenge | The same 8 questions for everyone each day, scored once and counted toward your streak |
 | Challenge links | After a quiz or speed round, share a link that gives a friend the exact same questions and shows your score to beat |
 | Progress | XP, levels, streaks, badges, a progress ring per chapter, and export/import of progress as JSON |
+| Retention | An 18-week activity heatmap, plus per-command memory strength with an interactive forgetting curve estimated from your flashcard reviews |
+| Audio drill | Hands-free flashcards: the device's speech engine reads the meaning, pauses, says the answer; rate by tap, keys or saying "yes"/"no" |
 | Play | Story mode (15 missions over a sysadmin's first week), 4 escape rooms with hints, 12 command-golf holes scored by keystrokes against par, and 4 boss fights (timed terminal battles for Parts I–III, a quiz battle for Part IV) |
 | Cheat sheet | Searchable and filterable by chapter |
 | App | Works offline (PWA) and can be installed to the home screen |
