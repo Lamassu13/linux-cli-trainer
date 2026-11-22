@@ -47,7 +47,9 @@
     eye: '<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     reset: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 1.6-7.3L4 10"/></svg>',
     clear: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
-    replay: '<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 1.6-7.3L4 10"/></svg>'
+    replay: '<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 1.6-7.3L4 10"/></svg>',
+    info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>',
+    tree: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v4H4zM14 10h6v4h-6zM14 17h6v4h-6zM7 8v11h7M7 12h7"/></svg>'
   };
 
   /* ================= content index ================= */
@@ -68,7 +70,9 @@
 
   /* ================= shell ================= */
   function newShell() { return Term.create({ docs: function (n) { return BYNAME.get(n) || null; }, known: KNOWN }); }
-  var shell = newShell(), transcript = [], activeTask = null;
+  // interactive shells pick up the prompt designed in the prompt studio; example/visualization shells stay default
+  function userShell() { var sh = newShell(); if (SRS.state.settings.ps1) sh.setVar('PS1', SRS.state.settings.ps1); return sh; }
+  var shell = userShell(), transcript = [], activeTask = null;
   var simCache = new Map();
   function simOut(cmd) {
     if (!simCache.has(cmd)) { var r = newShell().run(cmd); simCache.set(cmd, r.text.replace(/\n$/, '')); }
@@ -146,9 +150,9 @@
   SRS.on(function (type, d) {
     renderTop();
     if (type === 'sync') return;
-    if (type === 'level') { toast('Level up! You reached level ' + d.level, '⭐'); celebrate(); }
+    if (type === 'level') { toast('Level up! You reached level ' + d.level, '⭐'); celebrate(); if (d.level === STUDIO_LEVEL) setTimeout(function () { toast('Prompt studio unlocked: find it under Progress', '🎨'); }, 1200); }
     if (type === 'badge') { toast('Badge earned: ' + d.name, d.icon); celebrate(); }
-    if (type === 'import') { setTheme(SRS.state.settings.theme); route(); }
+    if (type === 'import') { setTheme(SRS.state.settings.theme); shell.setVar('PS1', SRS.state.settings.ps1 || PS1_DEFAULT); route(); }
   });
 
   /* ================= theme ================= */
@@ -172,7 +176,7 @@
   var ROUTES = [
     [/^\/?$/, viewHome, 'learn'], [/^\/module\/(.+)$/, viewModule, 'learn'], [/^\/lesson\/(.+)$/, viewLesson, 'learn'], [/^\/cmd\/(.+)$/, viewCmd, 'learn'],
     [/^\/terminal(?:\/(.+))?$/, viewTerminal, 'terminal'], [/^\/cards(?:\/(.+))?$/, viewCards, 'cards'], [/^\/quiz(?:\/(.+))?$/, viewQuiz, 'quiz'],
-    [/^\/speed(?:\/(.+))?$/, viewSpeed, 'quiz'], [/^\/daily$/, viewDaily, 'quiz'], [/^\/cheats$/, viewCheats, 'cheats'], [/^\/progress$/, viewProgress, '']
+    [/^\/speed(?:\/(.+))?$/, viewSpeed, 'quiz'], [/^\/daily$/, viewDaily, 'quiz'], [/^\/man$/, viewMan, 'quiz'], [/^\/cheats$/, viewCheats, 'cheats'], [/^\/progress$/, viewProgress, '']
   ];
   var backTo = null, lastHash = null;
   function setBack(h) { backTo = h; $('#backBtn').hidden = !h; }
@@ -416,22 +420,65 @@
   $('#sheet').addEventListener('click', function (e) { if (e.target.id === 'sheet' || e.target.closest('[data-close]')) closeSheet(); });
 
   /* ================= TERMINAL VIEW ================= */
+  // ANSI colours 0-7 (normal) and their bold/light variants, as chapter 13 describes
+  var PAL = ['#000000', '#cd3131', '#0dbc79', '#a0702a', '#2472c8', '#bc3fbc', '#11a8cd', '#c0c0c0'];
+  var PAL_B = ['#7f7f7f', '#f14c4c', '#23d18b', '#f5f543', '#3b8eea', '#d670d6', '#29b8db', '#ffffff'];
+  function promptHTML(parts, lastLineOnly) {
+    if (lastLineOnly) {
+      var keep = [];
+      for (var i = parts.length - 1; i >= 0; i--) {
+        var k = parts[i].t.lastIndexOf('\n');
+        if (k >= 0) { keep.unshift(Object.assign({}, parts[i], { t: parts[i].t.slice(k + 1) })); break; }
+        keep.unshift(parts[i]);
+      }
+      parts = keep;
+    }
+    return parts.map(function (p) {
+      var fg = p.fg === null ? null : (p.bold ? PAL_B : PAL)[p.fg], bg = p.bg === null ? null : PAL[p.bg], css = '';
+      if (p.inv) { var f = fg || '#d7e2ea'; fg = bg || '#05080c'; bg = f; }
+      if (fg) css += 'color:' + fg + ';';
+      if (bg) css += 'background:' + bg + ';';
+      if (p.bold) css += 'font-weight:700;';
+      if (p.u) css += 'text-decoration:underline;';
+      return css ? '<span style="' + css + '">' + esc(p.t) + '</span>' : esc(p.t);
+    }).join('');
+  }
+  // one-line plain-language reading of what is typed so far
+  function explainLine(v) {
+    var items = [], toks = tokenize(v), lastWord = -1;
+    toks.forEach(function (tk, i) { if (tk.k !== 'ws') lastWord = i; });
+    var typing = !/\s$/.test(v);
+    toks.forEach(function (tk, i) {
+      var cut = function (s) { return s.length > 64 ? s.slice(0, 62) + '…' : s; };
+      if (tk.k === 'c') {
+        if (tk.c) items.push(['c', tk.t, cut(tk.c.summary)]);
+        else if (!(typing && i === lastWord)) items.push(['x', tk.t, shell.simulated(tk.t) ? 'a command' : 'not a command I know']);
+      } else if (tk.k === 'f') items.push(['f', tk.t, tk.fi ? cut(tk.fi.map(function (f) { return f.d; }).join(' + ')) : 'option not covered in the lessons']);
+      else if (tk.k === 'o') { var o = BYNAME.get(tk.t); items.push(['o', tk.t, o ? cut(o.summary) : 'operator']); }
+    });
+    return items.map(function (x) { return '<span class="xt ' + x[0] + '"><code>' + esc(x[1]) + '</code> ' + esc(x[2]) + '</span>'; }).join('');
+  }
   function TermView(host, opts) {
     var self = this;
     opts = opts || {};
     this.hist = -1;
     this.ctrl = false;
     var keys = [['Tab', 'tab'], ['Ctrl', 'ctrl'], ['↑', 'up'], ['↓', 'down'], ['←', 'left'], ['→', 'right'], ['|', '|'], ['~', '~'], ['/', '/'], ['-', '-'], ['>', '>'], ['*', '*'], ['.', '.']];
+    this.opts = opts;
+    this.explainOn = SRS.state.settings.explain !== false;
     var chips = (opts.chips || []).map(function (c) { return '<button type="button" class="key word" data-ins="' + esc(c) + ' ">' + esc(c) + '</button>'; }).join('');
     host.innerHTML = '<div class="term" role="region" aria-label="Terminal simulator">' +
       '<div class="term-bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="title">me@linuxbox: ' + esc(opts.title || 'terminal') + '</span>' +
+      (opts.treeToggle ? '<button class="icon-btn tree-toggle" type="button" data-act="tree" aria-pressed="false" aria-label="Show the live file tree">' + ICON.tree + '</button>' : '') +
+      '<button class="icon-btn" type="button" data-act="explain" aria-pressed="' + this.explainOn + '" aria-label="Explain commands as I type">' + ICON.info + '</button>' +
       '<button class="icon-btn" type="button" data-act="clear" aria-label="Clear screen">' + ICON.clear + '</button>' +
       '<button class="icon-btn" type="button" data-act="reset" aria-label="Reset the practice filesystem">' + ICON.reset + '</button></div>' +
       '<div class="term-out" role="log" aria-live="polite" aria-label="Terminal output"></div>' +
+      '<div class="term-explain" role="note" aria-label="What your command means" hidden></div>' +
       '<form class="term-in" autocomplete="off"><label class="ps" for="tin' + (TermView.n = (TermView.n || 0) + 1) + '"></label>' +
       '<input id="tin' + TermView.n + '" type="text" inputmode="text" enterkeyhint="go" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" aria-label="Command input"></form>' +
       '<div class="keys" role="toolbar" aria-label="Terminal keys">' + keys.map(function (k) { return '<button type="button" class="key" data-key="' + esc(k[1]) + '"' + (k[1] === 'ctrl' ? ' aria-pressed="false"' : '') + ' aria-label="' + esc(k[0] === '|' ? 'pipe' : k[0]) + '">' + esc(k[0]) + '</button>'; }).join('') + chips + '</div></div>';
-    this.out = $('.term-out', host); this.input = $('input', host); this.ps = $('.ps', host); this.form = $('form', host);
+    this.out = $('.term-out', host); this.input = $('input', host); this.ps = $('.ps', host); this.form = $('form', host); this.ex = $('.term-explain', host);
     this.restore();
     this.form.addEventListener('submit', function (e) { e.preventDefault(); self.submit(); });
     this.input.addEventListener('keydown', function (e) { self.onKey(e); });
@@ -443,9 +490,11 @@
     });
     this.input.addEventListener('input', function () {
       var inp = self.input, ch = self.strip, p = inp.selectionStart;
-      if (!ch) return;
-      self.strip = null;
-      if (inp.value.slice(p - ch.length, p) === ch) { inp.value = inp.value.slice(0, p - ch.length) + inp.value.slice(p); inp.setSelectionRange(p - ch.length, p - ch.length); }
+      if (ch) {
+        self.strip = null;
+        if (inp.value.slice(p - ch.length, p) === ch) { inp.value = inp.value.slice(0, p - ch.length) + inp.value.slice(p); inp.setSelectionRange(p - ch.length, p - ch.length); }
+      }
+      self.explain();
     });
     this.input.addEventListener('focus', function () { setTimeout(onViewport, 50); });
     $$('.keys button', host).forEach(function (b) {
@@ -453,15 +502,26 @@
       b.addEventListener('click', function () { self.helper(b); });
     });
     $('[data-act="clear"]', host).addEventListener('click', function () { transcript = []; self.out.innerHTML = ''; self.input.focus(); });
+    $('[data-act="explain"]', host).addEventListener('click', function (e) {
+      self.explainOn = !self.explainOn; SRS.state.settings.explain = self.explainOn; SRS.save();
+      e.currentTarget.setAttribute('aria-pressed', String(self.explainOn)); self.explain();
+    });
+    var tb = $('[data-act="tree"]', host);
+    if (tb) tb.addEventListener('click', function () { var on = tb.getAttribute('aria-pressed') !== 'true'; tb.setAttribute('aria-pressed', String(on)); if (opts.onTree) opts.onTree(on); });
     $('[data-act="reset"]', host).addEventListener('click', function () {
-      shell = newShell(); transcript = [];
+      shell = userShell(); transcript = [];
       self.out.innerHTML = ''; self.line('Practice filesystem reset to its starting state.', 'note'); self.updatePs();
+      if (opts.onReset) opts.onReset();
       if (activeTask) self.line('Task restarted: ' + activeTask.prompt, 'note');
     });
     this.out.addEventListener('click', function () { if (!getSelection().toString()) self.input.focus({ preventScroll: true }); });
     this.updatePs();
   }
-  TermView.prototype.updatePs = function () { this.ps.textContent = shell.prompt(); };
+  TermView.prototype.updatePs = function () { this.ps.innerHTML = promptHTML(shell.promptParts(), true); };
+  TermView.prototype.explain = function () {
+    var v = this.input.value, html = this.explainOn && v.trim() ? explainLine(v) : '';
+    this.ex.innerHTML = html; this.ex.hidden = !html;
+  };
   TermView.prototype.restore = function () {
     if (!transcript.length) transcript.push({ c: 'note', h: 'Welcome! This is a simulated bash shell with a practice filesystem in <code>/home/me</code>. Try <b>ls</b>, <b>cd Documents</b> or <b>cat notes.txt</b>. Tab completes names; ↑ recalls history.' });
     this.out.innerHTML = transcript.map(function (t) { return '<div class="ln ' + t.c + '">' + t.h + '</div>'; }).join('');
@@ -479,8 +539,10 @@
   TermView.prototype.submit = function () {
     var line = this.input.value;
     this.input.value = ''; this.hist = -1;
-    this.line('<span class="ps">' + esc(shell.prompt()) + '</span>' + esc(line), 'cmd', true);
+    this.line('<span class="ps">' + promptHTML(shell.promptParts()) + '</span>' + esc(line), 'cmd', true);
+    this.explain();
     if (!line.trim()) return;
+    var before = this.opts.onBefore ? this.opts.onBefore() : null;
     var r = shell.run(line);
     if (r.clear) { transcript = []; this.out.innerHTML = ''; }
     var errs = {}; (r.err || '').split('\n').forEach(function (x) { if (x) errs[x] = 1; });
@@ -489,6 +551,7 @@
     if (r.note) this.line(r.note, 'note');
     if (r.stub && KNOWN[r.stub]) this.line('→ <a href="#/lesson/' + esc(KNOWN[r.stub]) + '">Open the ' + esc(r.stub) + ' lesson</a>', 'note', true);
     this.updatePs();
+    if (this.opts.onAfter) this.opts.onAfter(before, line);
     SRS.ran();
     if (activeTask) checkTask(r, this);
   };
@@ -500,6 +563,7 @@
     (function step() {
       if (!self.input.isConnected) return;
       self.input.value = cmd.slice(0, ++i);
+      self.explain();
       if (i < cmd.length) setTimeout(step, 22 + Math.random() * 30);
       else setTimeout(function () { self.typing = false; if (self.input.isConnected) self.submit(); }, 160);
     })();
@@ -511,6 +575,7 @@
     if (this.hist === -1) this.hist = h.length;
     this.hist = Math.max(0, Math.min(h.length, this.hist + d));
     this.input.value = this.hist === h.length ? '' : h[this.hist];
+    this.explain();
     var v = this.input; setTimeout(function () { v.setSelectionRange(v.value.length, v.value.length); }, 0);
   };
   TermView.prototype.complete = function () {
@@ -519,10 +584,12 @@
     if (r.options.length) this.line(r.options.join('   '), 'note');
     inp.value = r.line + after;
     inp.setSelectionRange(r.line.length, r.line.length);
+    this.explain();
   };
   TermView.prototype.ctrlAction = function (k) {
+    var self = this; setTimeout(function () { self.explain(); }, 0);   // u/k/w edit the line without an input event
     var inp = this.input, v = inp.value, p = inp.selectionStart;
-    if (k === 'c') { this.line('<span class="ps">' + esc(shell.prompt()) + '</span>' + esc(v) + '^C', 'cmd', true); inp.value = ''; return true; }
+    if (k === 'c') { this.line('<span class="ps">' + promptHTML(shell.promptParts()) + '</span>' + esc(v) + '^C', 'cmd', true); inp.value = ''; this.explain(); return true; }
     if (k === 'l') { transcript = []; this.out.innerHTML = ''; return true; }
     if (k === 'a') { inp.setSelectionRange(0, 0); return true; }
     if (k === 'e') { inp.setSelectionRange(v.length, v.length); return true; }
@@ -544,6 +611,7 @@
     else if (e.key === 'Escape') { if (!$('#sheet').hidden) closeSheet(); }
   };
   TermView.prototype.helper = function (b) {
+    var self = this; setTimeout(function () { self.explain(); }, 0);
     var inp = this.input, k = b.dataset.key, ins = b.dataset.ins;
     inp.focus({ preventScroll: true });
     if (ins !== undefined) {
@@ -602,7 +670,7 @@
     var page = el('<div class="term-page' + (task ? ' with-task' : '') + '"></div>');
     var panel = el('<section class="task-panel" aria-label="Guided task"></section>');
     if (task) {
-      shell = newShell(); transcript = [{ c: 'note', h: 'Fresh practice filesystem loaded for this task. You are in <code>/home/me</code>.' }];
+      shell = userShell(); transcript = [{ c: 'note', h: 'Fresh practice filesystem loaded for this task. You are in <code>/home/me</code>.' }];
       activeTask = task;
       if (review) panel.innerHTML = '<p class="eyebrow">From memory · ' + esc(task.lesson.title) + '</p><h2>' + esc(task.prompt) + '</h2>' +
         '<div class="task-status muted">No hints this time: do it the way you remember. I check after each command.</div>' +
@@ -620,11 +688,20 @@
       }).join('');
       panel.innerHTML = '<div class="row"><label class="sr-only" for="taskPick">Guided task</label><select id="taskPick" class="grow">' + opts + '</select><button class="btn small" type="button" data-rand>Random task</button></div>';
     }
-    page.appendChild(panel);
+    var side = el('<div class="term-side"></div>'), treeHost = el('<div class="tree-host"></div>');
+    side.appendChild(panel); side.appendChild(treeHost);
+    page.appendChild(side);
     var host = el('<div class="term-host" style="min-height:0"></div>');
     page.appendChild(host);
     root.appendChild(page);
-    var tv = new TermView(host, { chips: ['ls', 'cd', 'pwd', 'cat', 'mkdir', 'cp', 'mv', 'rm', 'echo', 'grep', 'clear'], title: task ? 'task' : '~' });
+    var tree = new LiveTree(treeHost);
+    var tv = new TermView(host, {
+      chips: ['ls', 'cd', 'pwd', 'cat', 'mkdir', 'cp', 'mv', 'rm', 'echo', 'grep', 'clear'], title: task ? 'task' : '~', treeToggle: true,
+      onBefore: function () { return tree.capture(); },
+      onAfter: function (before, line) { tree.update(before, line); },
+      onReset: function () { tree.open = new Set(); tree.draw(tree.capture()); },
+      onTree: function (on) { page.classList.toggle('show-tree', on); if (on) tree.focusRow(); requestAnimationFrame(onViewport); }
+    });
     $('.term', host).style.height = '100%';
     function showSolution() {
       var rv = $('.task-reveal', panel);
@@ -653,6 +730,60 @@
     requestAnimationFrame(onViewport);
     if (matchMedia('(hover: hover) and (pointer: fine)').matches) tv.input.focus({ preventScroll: true });
   }
+
+  /* ---- live file tree: redraws after every command and animates what changed ---- */
+  function dirOf(p) { return p.slice(0, p.lastIndexOf('/')) || '/'; }
+  function LiveTree(host) {
+    host.innerHTML = '<section class="viz live-tree" tabindex="0" aria-label="Live file tree"><h3>Files <small class="muted">· follows your commands</small></h3><ul class="tree"></ul></section>';
+    this.box = $('.live-tree', host); this.list = $('ul', host); this.open = new Set(); this.gen = 0;
+    this.draw(this.capture());
+  }
+  LiveTree.prototype.capture = function () {
+    var cwd = shell.cwd, rootPath = cwd === HOME || cwd.indexOf(HOME + '/') === 0 ? HOME : '/';
+    return { root: rootPath, snap: shell.snapshot(rootPath, 8), cwd: cwd };
+  };
+  LiveTree.prototype.expand = function (st, extra) {
+    var open = this.open;
+    [st.cwd].concat(extra || []).forEach(function (p) { ancestors(p).forEach(function (a) { open.add(a); }); });
+    open.add(st.cwd);
+    return open;
+  };
+  LiveTree.prototype.draw = function (st, cls) { this.gen++; if (st.snap) renderRows(this.list, treeRows(st.snap, this.expand(st)), st.cwd, cls); };
+  LiveTree.prototype.focusRow = function () {
+    var row = this.list.querySelector('li.added') || this.list.querySelector('li.cwd'), box = this.box;
+    if (row && box.scrollHeight > box.clientHeight) box.scrollTop += row.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 2;
+  };
+  LiveTree.prototype.update = function (before, line) {
+    var self = this, after = this.capture(), list = this.list, g = ++this.gen;   // a newer update or reset wins
+    if (!list.isConnected) return;
+    if (!before || before.root !== after.root || !before.snap || !after.snap) { this.draw(after); this.focusRow(); return; }
+    var b = flatPaths(before.snap), a = flatPaths(after.snap), added = [], removed = [];
+    a.forEach(function (x) { if (!b.has(x)) added.push(x); });
+    b.forEach(function (x) { if (!a.has(x)) removed.push(x); });
+    if (!added.length && !removed.length && before.cwd === after.cwd) return;
+    var topAdded = added.filter(function (x) { return added.indexOf(dirOf(x)) < 0; });
+    var topRemoved = removed.filter(function (x) { return removed.indexOf(dirOf(x)) < 0; });
+    topRemoved.forEach(function (x) { var li = list.querySelector('[data-p="' + CSS.escape(x) + '"]'); if (li) { li.classList.add('gone'); anim(li, [{ opacity: 1 }, { opacity: .25 }], { duration: 240 }); } });
+    wait(topRemoved.length ? 260 : 0).then(function () {
+      if (!list.isConnected || g !== self.gen) return;
+      var rects = {};
+      $$('li', list).forEach(function (li) { rects[li.dataset.p] = li.getBoundingClientRect(); });
+      var moveFrom = {};
+      if (/(^|[;&|]\s*)mv\s/.test(line) && topAdded.length === topRemoved.length) topAdded.forEach(function (x, i) { moveFrom[x] = topRemoved[i]; });
+      var cls = {};
+      added.forEach(function (x) { cls[x] = 'added'; });
+      self.expand(after, topAdded);
+      renderRows(list, treeRows(after.snap, self.open), after.cwd, cls);
+      var shift = self.box.scrollTop; self.focusRow(); shift = self.box.scrollTop - shift;   // scroll first so FLIP measures final positions
+      $$('li', list).forEach(function (li) {
+        var x = li.dataset.p, old = rects[moveFrom[x] || x], now = li.getBoundingClientRect();
+        if (old && shift) old = { left: old.left, top: old.top - shift };
+        if (old) { var dx = old.left - now.left, dy = old.top - now.top; if (dx || dy) anim(li, [{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'none' }], { duration: moveFrom[x] ? 600 : 360 }); }
+        else if (cls[x]) anim(li, [{ opacity: 0, transform: 'scale(.85)' }, { opacity: 1, transform: 'none' }], { duration: 380 });
+      });
+      setTimeout(function () { if (g === self.gen) $$('li.added', list).forEach(function (li) { li.classList.remove('added'); }); }, 2200);
+    });
+  };
 
   /* ---- viewport / on-screen keyboard handling ---- */
   function onViewport() {
@@ -1399,11 +1530,98 @@
       '<a class="card mod" href="#/quiz/weak" style="--i:1"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">🎯</div><div><h3>Weak commands</h3><p>' + (weak.length ? plural(weak.length, 'command') + ' to drill' : 'Built from your mistakes') + '</p></div></a>' +
       '<a class="card mod" href="#/quiz/mix" style="--i:2"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">🎲</div><div><h3>Mixed</h3><p>Questions from the whole book</p></div></a>' +
       '<a class="card mod" href="#/daily" style="--i:3"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">📅</div><div><h3>Daily challenge</h3><p>' + (SRS.state.daily[utcDay()] !== undefined ? '✓ Done today: ' + SRS.state.daily[utcDay()] + ' / 8' : 'Same 8 questions for everyone today') + '</p></div></a>' +
+      '<a class="card mod" href="#/man" style="--i:5"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">📖</div><div><h3>Man page hunt</h3><p>Find options in manual pages with less-style / search</p></div></a>' +
       '<a class="card mod" href="#/quiz/pairs" style="--i:4"><div class="ring" style="display:grid;place-items:center;font-size:1.8rem">⚖️</div><div><h3>Mix-ups</h3><p>' + PAIRS.length + ' pairs people confuse: cp/mv, &gt;/&gt;&gt;, find/locate…</p></div></a></div>' +
       '<h2 class="section">By chapter</h2><div class="grid stagger">' + C.modules.map(function (m, i) {
         var best = (SRS.state.quiz[m.id] || {}).best;
         return '<a class="card mod" href="#/quiz/' + m.id + '" style="--i:' + Math.min(i, 12) + '">' + ring((best || 0) / 100, best === undefined ? '–' : best + '%') + '<div><span class="num">Chapter ' + m.n + '</span><h3>' + esc(m.title) + '</h3></div></a>';
       }).join('') + '</div>';
+  }
+
+  /* ================= MAN PAGE HUNT ================= */
+  // Read a manual page and find the option that matches a description, using less-style search (/, n, N).
+  function markMatches(text, q) {
+    if (!q) return { html: esc(text), n: 0 };
+    var low = text.toLowerCase(), ql = q.toLowerCase(), out = '', pos = 0, n = 0, i;
+    while ((i = low.indexOf(ql, pos)) >= 0) { out += esc(text.slice(pos, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>'; pos = i + q.length; n++; }
+    return { html: out + esc(text.slice(pos)), n: n };
+  }
+  function viewMan(root) {
+    setBack('#/quiz');
+    var pool = ALLC.filter(function (c) { return (c.kind === 'cmd' || c.kind === 'builtin') && (c.flags || []).length >= 4 && /^[\w.-]+$/.test(c.name); });
+    var rounds = 8, i = 0, score = 0, used = {};
+    root.innerHTML = '<h1>Man page hunt</h1><p class="muted">Real users look things up in man pages. Find the option that fits the description. Search the page like in <b>less</b>: type a word after <kbd>/</kbd> and press Enter, then use <kbd>n</kbd> and <kbd>N</kbd> to jump between matches.</p>' +
+      '<div class="quiz-top"><span class="count" aria-live="polite"></span><div class="progressbar" aria-hidden="true"><i style="transform:scaleX(0)"></i></div></div><div id="manHost"></div>';
+    var host = $('#manHost'), top = $('.quiz-top', root);
+    function round() {
+      $('i', top).style.transform = 'scaleX(' + (i / rounds) + ')';
+      if (i >= rounds) return end();
+      $('.count', top).textContent = 'Round ' + (i + 1) + ' of ' + rounds + ' · score ' + score;
+      var c, tries = 0;
+      do { c = pool[Math.floor(Math.random() * pool.length)]; } while (used[c.id] && tries++ < 50);
+      used[c.id] = 1;
+      var f = c.flags[Math.floor(Math.random() * c.flags.length)];
+      var page = newShell().run('man ' + c.name).out, hits = [], at = -1, answered = false;
+      host.innerHTML = '<div class="card man-round"><div class="q" id="manq">Find the option of <code>' + esc(c.name) + '</code> that does this: <span class="man-goal">' + esc(f.d) + '</span></div>' +
+        '<form class="man-search" autocomplete="off"><label for="manSearch">/</label><input id="manSearch" type="text" data-slash aria-label="Search the manual page" placeholder="search the page" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">' +
+        '<button class="btn small" type="submit">Search</button><button class="btn small ghost" type="button" data-next-match aria-label="Next match (n)">n</button><button class="btn small ghost" type="button" data-prev-match aria-label="Previous match (N)">N</button><span class="man-hits muted" aria-live="polite"></span></form>' +
+        '<pre class="man-page" tabindex="0" role="region" aria-label="Manual page for ' + esc(c.name) + '"></pre>' +
+        '<form class="fill-in man-answer" autocomplete="off"><span class="ps" aria-hidden="true">$ ' + esc(c.name) + '</span><input type="text" aria-labelledby="manq" placeholder="option" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"><button class="btn primary small" type="submit">Check</button></form>' +
+        '<div class="feedback" hidden aria-live="polite"></div></div>';
+      var pre = $('.man-page', host), sForm = $('.man-search', host), sIn = $('#manSearch'), info = $('.man-hits', host);
+      pre.textContent = page;
+      function go(d) {
+        var marks = $$('mark', pre);
+        if (!marks.length) return;
+        if (at >= 0) marks[at].classList.remove('cur');
+        at = (at + d + marks.length) % marks.length;
+        marks[at].classList.add('cur');
+        pre.scrollTop = marks[at].offsetTop - pre.clientHeight / 3;
+        info.textContent = (at + 1) + ' of ' + marks.length;
+      }
+      sForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var q = sIn.value.trim(), r = markMatches(page, q);
+        pre.innerHTML = r.html; at = -1;
+        if (!q) { info.textContent = ''; return; }
+        if (!r.n) { info.textContent = 'Pattern not found'; return; }
+        go(1);
+        pre.focus({ preventScroll: true });
+      });
+      $('[data-next-match]', sForm).addEventListener('click', function () { go(1); });
+      $('[data-prev-match]', sForm).addEventListener('click', function () { go(-1); });
+      pre.addEventListener('keydown', function (e) {
+        if (e.key === 'n') { e.preventDefault(); go(1); } else if (e.key === 'N') { e.preventDefault(); go(-1); }
+        else if (e.key === '/') { e.preventDefault(); sIn.focus(); sIn.select(); }
+      });
+      var aForm = $('.man-answer', host);
+      aForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var v = norm($('input', aForm).value);
+        if (!v || answered) return;
+        answered = true;
+        // also accept the option without its placeholder ("-name" for "-name pattern", "--output" for "--output=file"),
+        // unless another option of the same command starts with the same word
+        var first = f.f.split(/[ =]/)[0], unique = c.flags.filter(function (x) { return x.f.split(/[ =]/)[0] === first; }).length === 1;
+        var forms = [f.f, f.long, f.long ? f.long.replace(/=.*$/, '') : null, /=\w+$/.test(f.f) ? f.f.replace(/=\w+$/, '') : null, unique ? first : null].filter(Boolean);
+        var ok = forms.concat(forms.map(function (a) { return c.name + ' ' + a; })).some(function (a) { return norm(a) === v; });
+        SRS.answer(c.id, ok); if (ok) score++;
+        $('input', aForm).disabled = true;
+        var fb = $('.feedback', host);
+        fb.hidden = false; fb.className = 'feedback ' + (ok ? 'good' : 'bad');
+        fb.innerHTML = (ok ? '<b>✓ Found it!</b>' : '<b>✗ Not that one.</b>') + ' <code>' + esc(f.f) + '</code>' + (f.long ? ' (<code>' + esc(f.long) + '</code>)' : '') + ': ' + esc(f.d) +
+          '<div class="row end" style="margin-top:10px"><button class="btn primary" type="button" data-next>Next ›</button></div>';
+        var nb = $('[data-next]', fb); nb.addEventListener('click', function () { i++; round(); }); nb.focus({ preventScroll: true });
+      });
+      if (matchMedia('(pointer: fine)').matches) sIn.focus({ preventScroll: true });
+    }
+    function end() {
+      if (score >= 6) celebrate();
+      host.innerHTML = '<div class="card" style="text-align:center"><div class="eyebrow">Man page hunt</div><h2 style="font-size:2.4rem">' + score + ' / ' + rounds + '</h2><p>' + (score >= 6 ? 'You read man pages like a pro.' : 'Searching with / gets faster with practice.') + '</p>' +
+        '<div class="row" style="justify-content:center"><button class="btn primary" type="button" data-again>Play again</button><a class="btn ghost" href="#/quiz">All quizzes</a></div></div>';
+      $('[data-again]', host).addEventListener('click', function () { route(); });
+    }
+    round();
   }
 
   /* ================= SPEED ROUND ================= */
@@ -1533,12 +1751,14 @@
       '<h2 class="section">Flashcard boxes</h2><div class="boxes">' + boxes.map(function (n, i) { return '<span class="pill">Box ' + (i + 1) + ': ' + n + '</span>'; }).join('') +
       '<span class="pill">Tasks due to redo: ' + dueTaskIds().length + '</span><span class="pill">Typed answers right: ' + s.counts.recalled + '</span></div>' +
       '<h2 class="section">Settings</h2><div class="card"><div class="row"><span class="grow">Theme</span><div class="seg" role="group" aria-label="Theme">' + ['system', 'dark', 'light'].map(function (t) { return '<button type="button" data-theme-set="' + t + '" aria-pressed="' + (s.settings.theme === t) + '">' + t[0].toUpperCase() + t.slice(1) + '</button>'; }).join('') + '</div></div></div>' +
+      '<div class="card" id="promptStudio"></div>' +
       '<div class="card"><h3>Backup &amp; sync</h3><p class="muted">Progress is saved in this browser only. Export it to move it to another device, or as a backup' + (isIOS && !standalone ? '. Safari may clear site data after 7 days without a visit, so export regularly or add the app to your Home Screen' : '') + '.</p>' +
       '<div class="row"><button class="btn primary" type="button" data-export>Export progress (.json)</button><label class="btn" for="importFile">Import file</label><input id="importFile" type="file" accept=".json,application/json" class="sr-only"><button class="btn ghost" type="button" data-paste>Paste JSON</button></div><div id="ioArea"></div></div>' +
       '<div class="card"><h3>Install</h3>' + (standalone ? '<p>Installed. It works offline.</p>' : isIOS ? '<p>In Safari, tap <b>Share</b> → <b>Add to Home Screen</b>. It works offline after the first visit.</p>' : '<p>Install the app for offline use and a full-screen terminal.</p><button class="btn" type="button" data-install ' + (installEvt ? '' : 'disabled') + '>Install app</button>') + '</div>' +
-      '<div class="card"><h3>Keyboard shortcuts</h3><p class="muted">Alt+1…5 switch tabs · / search the cheat sheet · Flashcards: Space flip, 1–4 grade (Again/Hard/Good/Easy), ← Again, → Good, ↑ Easy · Quiz: 1–9 choose, Enter next · Terminal: Tab complete, ↑/↓ history, Ctrl-A/E/U/K/W/L/C</p></div>' +
+      '<div class="card"><h3>Keyboard shortcuts</h3><p class="muted">Alt+1…5 switch tabs · / search the cheat sheet · Man page hunt: / search, n / N next and previous match · Flashcards: Space flip, 1–4 grade (Again/Hard/Good/Easy), ← Again, → Good, ↑ Easy · Quiz: 1–9 choose, Enter next · Terminal: Tab complete, ↑/↓ history, Ctrl-A/E/U/K/W/L/C</p></div>' +
       '<div class="card"><h3>About</h3><p class="muted">All lessons are paraphrased from <cite>' + esc(C.book) + '</cite> (No Starch Press). This trainer is a study companion, not a replacement for the book.</p><button class="btn danger small" type="button" data-reset>Reset all progress</button></div>';
     $$('[data-theme-set]', root).forEach(function (b) { b.addEventListener('click', function () { setTheme(b.dataset.themeSet); route(true); }); });
+    promptStudio($('#promptStudio'));
     $('[data-export]', root).addEventListener('click', function () {
       var json = SRS.exportJSON(), name = 'linux-cli-progress-' + new Date().toISOString().slice(0, 10) + '.json', blob = new Blob([json], { type: 'application/json' });
       var file = null; try { file = new File([blob], name, { type: 'application/json' }); } catch (e) { /* old Safari */ }
@@ -1560,13 +1780,65 @@
     $('[data-reset]', root).addEventListener('click', function () { if (confirm('Reset all progress? A backup copy is kept in this browser.')) { SRS.reset(); toast('Progress reset'); } });
   }
 
+  /* ================= PROMPT STUDIO ================= */
+  var PS1_DEFAULT = '[\\u@\\h \\W]\\$ ', STUDIO_LEVEL = 3;
+  var PS1_PRESETS = [
+    ['Default', PS1_DEFAULT], ['Minimal', '\\$ '], ['Clock', '\\A \\h \\$ '], ['Angle', '<\\u@\\h \\W>\\$ '],
+    ['Red', '\\[\\033[0;31m\\]<\\u@\\h \\W>\\$\\[\\033[0m\\] '], ['Red background', '\\[\\033[0;41m\\]<\\u@\\h \\W>\\$\\[\\033[0m\\] ']
+  ];
+  var PS1_CHIPS = [['\\u', 'user'], ['\\h', 'host'], ['\\w', 'full dir'], ['\\W', 'dir name'], ['\\A', 'HH:MM'], ['\\t', 'HH:MM:SS'], ['\\d', 'date'], ['\\$', '$ or #'], ['\\n', 'newline'],
+    ['\\[\\033[0;31m\\]', 'red'], ['\\[\\033[0;32m\\]', 'green'], ['\\[\\033[1;33m\\]', 'yellow'], ['\\[\\033[0;34m\\]', 'blue'], ['\\[\\033[0;36m\\]', 'cyan'], ['\\[\\033[0m\\]', 'reset colour']];
+  function promptStudio(box) {
+    if (!box) return;
+    var lvl = SRS.level();
+    if (lvl < STUDIO_LEVEL) {
+      var need = 50 * Math.pow(STUDIO_LEVEL - 1, 2) - SRS.state.xp;
+      box.innerHTML = '<h3>🔒 Prompt studio</h3><p class="muted">Reach level ' + STUDIO_LEVEL + ' to unlock it (' + need + ' XP to go). Then you can design your own shell prompt with the PS1 codes from Chapter 13, and every terminal in the app will use it.</p>';
+      return;
+    }
+    var cur = SRS.state.settings.ps1 || PS1_DEFAULT;
+    box.innerHTML = '<h3>🎨 Prompt studio</h3><p class="muted">Design your prompt with the PS1 escape codes from Chapter 13. Every terminal in the app uses it.</p>' +
+      '<div class="fill-in"><label class="ps" for="ps1In">PS1=</label><input id="ps1In" type="text" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></div>' +
+      '<div class="prompt-preview" aria-live="polite" aria-label="Preview"></div>' +
+      '<p class="eyebrow">Insert a code</p><div class="flags ps1-chips">' + PS1_CHIPS.map(function (c, i) { return '<button type="button" class="chip" data-chip="' + i + '"><span>' + esc(c[0]) + '</span><small>' + esc(c[1]) + '</small></button>'; }).join('') + '</div>' +
+      '<p class="eyebrow" style="margin-top:12px">Prompts from the book</p><div class="flags">' + PS1_PRESETS.map(function (p, i) { return '<button type="button" class="btn small" data-preset="' + i + '">' + esc(p[0]) + '</button>'; }).join('') + '</div>' +
+      '<div class="row" style="margin-top:12px"><button class="btn primary" type="button" data-save>Use this prompt</button><button class="btn ghost" type="button" data-default>Back to default</button></div>' +
+      '<p class="muted" style="margin-top:12px">To keep it in a real shell, add these two lines to <code>~/.bashrc</code>:</p><pre class="out bashrc"></pre>';
+    var inp = $('#ps1In'), pv = $('.prompt-preview', box), rc = $('.bashrc', box);
+    inp.value = cur;
+    function preview() {
+      var sh = newShell(); sh.run('cd Documents');
+      pv.innerHTML = '<span class="ps">' + promptHTML(sh.promptParts(inp.value)) + '</span>ls -l';
+      rc.textContent = "PS1='" + inp.value.replace(/'/g, "'\\''") + "'\nexport PS1";
+    }
+    inp.addEventListener('input', preview);
+    $$('[data-chip]', box).forEach(function (b) { b.addEventListener('click', function () { inp.focus(); inp.setRangeText(PS1_CHIPS[+b.dataset.chip][0], inp.selectionStart, inp.selectionEnd, 'end'); preview(); }); });
+    $$('[data-preset]', box).forEach(function (b) { b.addEventListener('click', function () { inp.value = PS1_PRESETS[+b.dataset.preset][1]; preview(); }); });
+    $('[data-save]', box).addEventListener('click', function () {
+      var v = inp.value.slice(0, 200);
+      SRS.state.settings.ps1 = v === PS1_DEFAULT ? '' : v; SRS.save(); SRS.checkBadges();
+      shell.setVar('PS1', v || PS1_DEFAULT);
+      toast('Prompt saved: every terminal now uses it', '🎨');
+    });
+    $('[data-default]', box).addEventListener('click', function () {
+      inp.value = PS1_DEFAULT; SRS.state.settings.ps1 = ''; SRS.save(); shell.setVar('PS1', PS1_DEFAULT); preview(); toast('Back to the default prompt');
+    });
+    preview();
+  }
+
   /* ================= global keys, boot ================= */
   $('.skip').addEventListener('click', function (e) { e.preventDefault(); main.focus(); });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !$('#sheet').hidden) { closeSheet(); return; }
     var typing = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
     if (e.altKey && /^Digit[1-5]$/.test(e.code)) { e.preventDefault(); location.hash = $$('#tabbar a')[+e.code.slice(5) - 1].getAttribute('href'); return; }
-    if (!typing && e.key === '/' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (!/cheats/.test(location.hash)) location.hash = '#/cheats'; setTimeout(function () { var s = $('#cs'); if (s) s.focus(); }, 60); }
+    if (!typing && e.key === '/' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      var own = $('[data-slash]');
+      if (own) { own.focus(); own.select(); return; }
+      if (!/cheats/.test(location.hash)) location.hash = '#/cheats';
+      setTimeout(function () { var s = $('#cs'); if (s) s.focus(); }, 60);
+    }
   });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   if (SRS.state.settings.theme !== 'system') setTheme(SRS.state.settings.theme); else syncThemeBtn();

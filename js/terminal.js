@@ -1551,14 +1551,39 @@
       r.line = line;
       return r;
     };
-    sh.prompt = function () {
+    // PS1 rendering (chapter 13): backslash escapes plus ANSI colour codes.
+    // Returns segments { t, fg, bg, bold, u, inv } so the UI can colour them; fg/bg are 0-7 or null.
+    sh.promptParts = function (ps1) {
+      var ps = ps1 !== undefined ? ps1 : (vars.PS1 === undefined ? '$ ' : vars.PS1);
       var w = sh.cwd === HOME ? '~' : sh.cwd.indexOf(HOME + '/') === 0 ? '~' + sh.cwd.slice(HOME.length) : sh.cwd;
-      var d = new Date(now());
-      return (vars.PS1 || '$ ').replace(/\\\[|\\\]/g, '').replace(/\\(033|e)\[[0-9;]*[a-zA-Z]/g, '')
-        .replace(/\\u/g, USER).replace(/\\h/g, HOST).replace(/\\H/g, HOST).replace(/\\W/g, w === '~' ? '~' : basename(w)).replace(/\\w/g, w)
-        .replace(/\\\$/g, '$').replace(/\\t/g, two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds()))
-        .replace(/\\A/g, two(d.getHours()) + ':' + two(d.getMinutes())).replace(/\\d/g, d.toDateString().slice(0, 10)).replace(/\\n/g, ' ');
+      var d = new Date(now()), h12 = d.getHours() % 12 || 12, ampm = d.getHours() < 12 ? 'AM' : 'PM';
+      var esc1 = {
+        a: '', d: d.toDateString().slice(0, 10), h: HOST, H: HOST, j: '0', l: '0', n: '\n', r: '', s: 'bash',
+        t: two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds()),
+        T: two(h12) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds()), '@': two(h12) + ':' + two(d.getMinutes()) + ' ' + ampm,
+        A: two(d.getHours()) + ':' + two(d.getMinutes()), u: USER, v: '5.0', V: '5.0.17', w: w, W: w === '~' ? '~' : basename(w),
+        '!': String(history.length + 1), '#': String(history.length + 1), $: '$', '[': '', ']': '', '\\': '\\', e: ''
+      };
+      var parts = [], st = { fg: null, bg: null, bold: false, u: false, inv: false }, buf = '';
+      function flush() { if (buf) parts.push({ t: buf, fg: st.fg, bg: st.bg, bold: st.bold, u: st.u, inv: st.inv }); buf = ''; }
+      function sgr(codes) {
+        (codes === '' ? ['0'] : codes.split(';')).forEach(function (c) {
+          c = +c;
+          if (c === 0) st = { fg: null, bg: null, bold: false, u: false, inv: false };
+          else if (c === 1) st.bold = true; else if (c === 4) st.u = true; else if (c === 7) st.inv = true;
+          else if (c >= 30 && c <= 37) st.fg = c - 30; else if (c >= 40 && c <= 47) st.bg = c - 40;
+        });
+      }
+      for (var i = 0; i < ps.length; i++) {
+        var m = ps.slice(i).match(/^(?:\\033|\\e|\\x1b|\x1b)\[([0-9;]*)([a-zA-Z])/);
+        if (m) { flush(); if (m[2] === 'm') sgr(m[1]); i += m[0].length - 1; continue; }   // cursor codes are dropped
+        if (ps[i] === '\\' && i + 1 < ps.length && esc1.hasOwnProperty(ps[i + 1])) { buf += esc1[ps[i + 1]]; i++; continue; }
+        buf += ps[i];
+      }
+      flush();
+      return parts;
     };
+    sh.prompt = function () { return sh.promptParts().map(function (p) { return p.t; }).join('').replace(/\n/g, ' '); };
     sh.history = function () { return history.slice(); };
     sh.commands = function () { return Object.keys(C).concat(BUILTINS.filter(function (b) { return !C[b]; })); };
     sh.simulated = function (n) { return !!C[n]; };

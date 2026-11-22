@@ -10,6 +10,9 @@ An interactive, offline-capable web app for learning and memorizing the Linux co
 | Lessons | Syntax, a plain-language explanation, colour-coded options you can tap, and examples with output |
 | Animations | File tree for `ls cd mkdir cp mv rm ln find`, pipelines, a `grep` scan, and an interactive `chmod` bit grid |
 | Terminal | Simulated bash over a practice filesystem (pipes, redirection, globbing, expansions, tab completion, history), plus 113 guided tasks that check themselves |
+| A terminal that teaches | A live line under the input explains each command, option and operator as you type; a live file tree beside the terminal animates every change |
+| Man page hunt | Find options in simulated man pages using `less`-style search (`/`, `n`, `N`) |
+| Prompt studio | Unlocks at level 3: design your own `PS1` with the escape and colour codes from Chapter 13; every terminal in the app uses it |
 | Flashcards | Leitner spaced repetition with Again/Hard/Good/Easy grading and swipe gestures; a flip mode and a type-the-answer mode with typo detection; fill-in-the-blank cards built from the book's examples |
 | Task reviews | Finished guided tasks come back on a schedule to redo from memory, without hints |
 | Quizzes | Multiple choice, type the command, "which command produced this output?", build-the-command puzzles, a 60-second speed round, and a weak-commands drill |

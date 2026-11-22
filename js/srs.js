@@ -17,7 +17,7 @@
   function blank() {
     return { v: 1, cards: {}, treview: {}, daily: {}, stats: {}, lessons: {}, tasks: {}, quiz: {}, xp: 0, streak: { last: 0, n: 0, best: 0 },
       badges: {}, speed: { best: 0 }, counts: { run: 0, reviews: 0, correct: 0, perfect: 0, recalled: 0, treviews: 0, dailies: 0 },
-      settings: { theme: 'system', front: 'cmd', mode: 'flip' } };
+      settings: { theme: 'system', front: 'cmd', mode: 'flip', explain: true, ps1: '' } };
   }
   function valid(s) { return s && s.v === 1 && typeof s.cards === 'object' && typeof s.xp === 'number' && typeof s.streak === 'object'; }
   // Fill missing fields and coerce every value to the expected type. Imported files are untrusted:
@@ -38,7 +38,8 @@
     o.speed = { best: num(obj(s.speed).best) };
     var ct = obj(s.counts); o.counts = {}; Object.keys(b.counts).forEach(function (k) { o.counts[k] = num(ct[k]); });
     var se = obj(s.settings);
-    o.settings = { theme: ['system', 'dark', 'light'].indexOf(se.theme) >= 0 ? se.theme : 'system', front: se.front === 'meaning' ? 'meaning' : 'cmd', mode: se.mode === 'type' ? 'type' : 'flip' };
+    o.settings = { theme: ['system', 'dark', 'light'].indexOf(se.theme) >= 0 ? se.theme : 'system', front: se.front === 'meaning' ? 'meaning' : 'cmd', mode: se.mode === 'type' ? 'type' : 'flip',
+      explain: se.explain !== false, ps1: typeof se.ps1 === 'string' ? se.ps1.slice(0, 200) : '' };
     // progress saved before task reviews existed: schedule a first review two days after each finished task
     Object.keys(o.tasks).forEach(function (k) { if (!o.treview[k]) o.treview[k] = [1, o.tasks[k] + TASK_INTERVALS[0]]; });
     return o;
@@ -165,6 +166,7 @@
     { id: 'recall50', icon: '✍️', name: 'Total recall', d: 'Type 50 flashcard answers correctly', test: function () { return state.counts.recalled >= 50; } },
     { id: 'treview10', icon: '🔁', name: 'Muscle memory', d: 'Redo 10 tasks from memory', test: function () { return state.counts.treviews >= 10; } },
     { id: 'daily7', icon: '📆', name: 'Daily devotee', d: 'Complete 7 daily challenges', test: function () { return state.counts.dailies >= 7; } },
+    { id: 'prompt', icon: '🎨', name: 'Prompt artist', d: 'Design your own prompt in the prompt studio', test: function () { return !!state.settings.ps1; } },
     { id: 'perfect', icon: '💯', name: 'Perfectionist', d: 'Score 100% on a quiz of 8+ questions', test: function () { return state.counts.perfect >= 1; } },
     { id: 'speed15', icon: '⚡', name: 'Speed demon', d: 'Score 15+ in a speed round', test: function () { return state.speed.best >= 15; } },
     { id: 'streak3', icon: '🔥', name: 'On a roll', d: 'Keep a 3-day streak', test: function () { return state.streak.best >= 3; } },

@@ -58,4 +58,7 @@ t('source .bashrc', () => { const s = fresh(); s.run('source .bashrc'); assert.m
 
 t('assignment concat', () => { const s = fresh(); s.run('foo="This is some "; foo=$foo"text."'); assert.equal(out(s, 'echo "$foo"'), 'This is some text.\n'); });
 t('2>&1 order', () => { const s = fresh(); s.run('ls nope > a.txt 2>&1'); assert.match(s.readFile('a.txt'), /cannot access/); const r = s.run('ls nope 2>&1 > b.txt'); assert.match(r.text, /cannot access/); assert.equal(s.readFile('b.txt'), ''); assert.match(out(s, 'ls nope 2>&1 | wc -l'), /^1\n$/); });
+t('prompt escapes and colours', () => { const s = fresh(); assert.equal(s.prompt(), '[me@linuxbox ~]$ '); s.run('cd Documents'); assert.equal(s.prompt(), '[me@linuxbox Documents]$ ');
+  s.run('PS1="<\\u@\\h \\w>\\$ "'); assert.equal(s.prompt(), '<me@linuxbox ~/Documents>$ ');
+  const p = s.promptParts('\\[\\033[0;31m\\]red\\[\\033[0m\\] \\033[1;44mX'); assert.equal(JSON.stringify(p.map(x => [x.t, x.fg, x.bg, x.bold])), JSON.stringify([['red', 1, null, false], [' ', null, null, false], ['X', null, 4, true]])); });
 console.log(n + ' terminal checks passed' + (process.exitCode ? ' (with failures above)' : ''));

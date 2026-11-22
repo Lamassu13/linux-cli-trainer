@@ -282,7 +282,7 @@ textarea { min-height: 140px; font-family: var(--mono); font-size: 16px; }
 
 /* ---------- terminal ---------- */
 .term {
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; min-height: 0;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto; grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0;
   background: var(--term-bg); color: var(--term-fg); border-radius: var(--radius); border: 1px solid #1d2733;
   overflow: hidden; font-family: var(--mono);
 }
@@ -320,13 +320,25 @@ textarea { min-height: 140px; font-family: var(--mono); font-size: 16px; }
 .key.word { font-weight: 500; color: #9ee6b9; }
 .key[aria-pressed="true"] { background: #6cb6ff; color: #04121f; border-color: transparent; }
 .key:active { transform: scale(.94); }
-.term-page { display: grid; gap: 10px; grid-template-rows: auto minmax(0, 1fr); height: var(--term-h, 70vh); padding: 10px 0 10px; }
+.term-page { display: grid; gap: 10px; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); height: var(--term-h, 70vh); padding: 10px 0 10px; }
 .term-page .term { height: 100%; }
 .task-panel { background: var(--bg2); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; font-size: .94rem; }
 .task-panel .row { margin-top: 6px; }
 .task-panel.done { border-color: var(--accent); }
 .task-panel h2 { font-size: 1rem; margin: 0 0 4px; }
-@media (min-width: 900px) { .term-page.with-task { grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); } .term-page.with-task .task-panel { align-self: start; } }
+/* terminal page: side column (task + live tree) and the terminal */
+.term-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; min-width: 0; }
+.term-side .live-tree { display: none; }
+.term-page.show-tree .term-side .live-tree { display: block; max-height: 24vh; max-height: 24dvh; overflow: auto; }
+.term-page.show-tree .term-side { max-height: calc(var(--term-h, 70vh) * .36); overflow-y: auto; }
+body.kb-open .term-page .live-tree { display: none !important; }
+.live-tree h3 small { font-weight: 500; }
+@media (min-width: 900px) {
+  .term-page { grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .term-side, .term-page.show-tree .term-side { overflow-y: auto; max-height: none; }
+  .term-side .live-tree, .term-page.show-tree .term-side .live-tree { display: block; flex: 1 1 auto; min-height: 120px; max-height: none; overflow: auto; }
+  .tree-toggle { display: none !important; }
+}
 
 /* ---------- visualizations ---------- */
 .viz { background: var(--bg2); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; min-width: 0; }
@@ -502,10 +514,11 @@ body.kb-open .sheet-body .term { height: calc(var(--vvh, 100dvh) - var(--safe-t)
 
 /* landscape phones: task beside the terminal so the output keeps its height */
 @media (orientation: landscape) and (max-height: 500px) {
-  .term-page.with-task { grid-template-columns: minmax(200px, 34%) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-  .term-page.with-task .task-panel { overflow-y: auto; align-self: stretch; }
+  .term-page { grid-template-columns: minmax(200px, 34%) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .term-side, .term-page.show-tree .term-side { overflow-y: auto; max-height: none; }
+  .term-side .live-tree, .term-page.show-tree .term-side .live-tree { display: block; flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+  .tree-toggle { display: none !important; }
   .task-panel .eyebrow { display: none; }
-  .term-page:not(.with-task) { grid-template-rows: auto minmax(0, 1fr); }
 }
 
 /* ---------- flashcards: grading, typed answers, task reviews ---------- */
@@ -539,3 +552,26 @@ body.kb-open .flash-stage.typed { height: clamp(150px, 26dvh, 240px); }
 .versus { font-weight: 700; font-size: 1.05rem; }
 .share-box { margin-top: 12px; }
 .share-url { font-family: var(--mono); text-align: center; }
+
+/* ---------- terminal that teaches: explain line, man page hunt, prompt studio ---------- */
+.term-explain { display: flex; gap: 14px; overflow-x: auto; white-space: nowrap; padding: 5px 12px; border-top: 1px dashed #1d2733; font: .8rem var(--font); color: #9fb0c0; scrollbar-width: none; overscroll-behavior-x: contain; }
+.term-explain::-webkit-scrollbar { display: none; }
+.term-explain code { background: transparent; padding: 0; font-weight: 700; }
+.xt.c code { color: #7ee2a8; } .xt.f code { color: #f0b849; } .xt.o code { color: #ff8fd0; } .xt.x code { color: #ff8d8d; }
+.term-bar .icon-btn[aria-pressed="true"] { color: #7ee2a8; }
+.man-search { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0 8px; }
+.man-search label { font: 700 1.1rem var(--mono); }
+.man-search input { flex: 1 1 140px; width: auto; font-family: var(--mono); }
+.man-hits { font-size: .85rem; }
+.man-page { position: relative; margin: 0 0 12px; max-height: 44vh; max-height: 44dvh; overflow: auto; overscroll-behavior: contain; background: var(--term-bg); color: #c9d4de; font: .82rem/1.5 var(--mono); padding: 10px 12px; border-radius: 10px; white-space: pre-wrap; }
+.man-page mark { background: rgba(240, 184, 73, .35); color: inherit; border-radius: 3px; }
+.man-page mark.cur { background: #f0b849; color: #111; }
+.man-goal { font-weight: 500; }
+.prompt-preview { background: var(--term-bg); color: var(--term-fg); font: 14px/1.5 var(--mono); padding: 10px 12px; border-radius: 10px; white-space: pre-wrap; overflow-x: auto; margin: 10px 0; }
+.prompt-preview .ps { color: #7ee2a8; }
+.ps1-chips .chip { flex-direction: column; gap: 0; line-height: 1.15; padding: 6px 10px; }
+.ps1-chips .chip small { font: 500 .7rem var(--font); color: var(--muted); }
+.task-panel .row > select { flex: 1 1 100%; min-width: 0; width: 100%; }
+.brand { white-space: nowrap; }
+@media (max-width: 420px) { #backBtn:not([hidden]) + .brand .brand-name { display: none; } }
+.man-search .btn { min-width: 44px; }
