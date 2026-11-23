@@ -130,7 +130,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .tabbar a svg { width: 24px; height: 24px; }
 .tabbar a[aria-current="page"] { color: var(--accent); }
 .tabbar a[aria-current="page"] svg { transform: translateY(-1px); }
-body.kb-open .tabbar { transform: translateY(110%); }
+body.kb-open .tabbar, body.kb-open .topbar { display: none; }
 
 main {
   display: block; outline: none;
@@ -148,7 +148,7 @@ body.route-terminal main { padding-bottom: 0; padding-top: 0; }
   }
   main { margin-left: calc(var(--rail-w) + var(--safe-l)); padding-bottom: 40px; padding-left: var(--gutter); }
   body.route-terminal main { padding-bottom: 0; }
-  body.kb-open .tabbar { transform: none; }
+  body.kb-open main { margin-left: 0; }
 }
 @media (orientation: landscape) and (max-height: 500px) {
   :root { --top-h: 46px; --rail-w: 72px; }
@@ -672,3 +672,17 @@ svg.curve .cdot { fill: var(--bg2); stroke: var(--chart-line); stroke-width: 2; 
 .audio-controls, .audio-grade { justify-content: center; margin-top: 12px; }
 .audio-grade .btn { min-width: 140px; }
 .audio-count { text-align: center; }
+
+/* ---------- on-screen keyboard: the terminal fills exactly the visible area above the keyboard ---------- */
+body.kb-open .term-page {
+  position: fixed; z-index: 45; left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vvh, 100%); margin: 0;
+  padding: 6px calc(6px + var(--safe-r)) 6px calc(6px + var(--safe-l)); background: var(--bg); gap: 6px;
+}
+body.kb-open .term-page:not(.with-task) .term-side { display: none; }
+body.kb-open .term-page:not(.with-task) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+body.kb-open .term-page.with-task .term-side { max-height: 30%; overflow-y: auto; }
+body.kb-open .term-page .task-panel { padding: 6px 10px; }
+body.kb-open .term-page .term-bar { padding-top: 2px; padding-bottom: 2px; }
+body.kb-open .sheet { top: var(--vv-top, 0px); bottom: auto; height: var(--vvh, 100%); align-items: stretch; }
+body.kb-open .sheet-panel { max-height: 100%; border-radius: 0; }
+.update-toast { pointer-events: auto; justify-content: space-between; }

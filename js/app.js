@@ -786,11 +786,24 @@
   };
 
   /* ---- viewport / on-screen keyboard handling ---- */
+  // On-screen keyboard. Newer iOS shrinks the layout viewport together with the visual one, so
+  // "innerHeight - visualViewport.height" stays near 0 there. Instead: on a touch device, a focused text
+  // field means the keyboard is up (phones always; tablets only when the visible area actually shrank).
+  var vvFull = 0, wasKb = false, mqCoarse = matchMedia('(pointer: coarse)');
+  function typingField() {
+    var a = document.activeElement;
+    return !!a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|search|email|url|tel|password|number)$/.test(a.type || 'text'))) && !a.disabled && !a.readOnly;
+  }
   function onViewport() {
-    var vv = window.visualViewport, h = vv ? vv.height : innerHeight, top = vv ? vv.offsetTop : 0;
-    document.documentElement.style.setProperty('--vvh', h + 'px');
-    var kb = !!vv && innerHeight - vv.height > 140 && document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+    var vv = window.visualViewport, h = vv ? vv.height : innerHeight, top = vv ? vv.offsetTop : 0, de = document.documentElement;
+    var focused = typingField();
+    if (!focused || !vvFull) vvFull = Math.max(h, focused ? 0 : innerHeight);   // full visible height while nothing is being typed
+    var kb = mqCoarse.matches && focused && (innerWidth < 820 || vvFull - h > 120);
+    de.style.setProperty('--vvh', h + 'px');
+    de.style.setProperty('--vv-top', top + 'px');   // where the visible area starts (iOS pans it when the keyboard opens)
     document.body.classList.toggle('kb-open', kb);
+    if (wasKb && !kb) setTimeout(function () { scrollTo(scrollX, scrollY); }, 60);   // iOS: re-anchor the fixed bars after the keyboard closes
+    wasKb = kb;
     var page = $('.term-page');
     if (page) {
       if (kb && scrollY) scrollTo(0, 0);
@@ -802,6 +815,7 @@
   if (window.visualViewport) { visualViewport.addEventListener('resize', onViewport); visualViewport.addEventListener('scroll', onViewport); }
   addEventListener('resize', onViewport);
   document.addEventListener('focusout', function () { setTimeout(onViewport, 80); });
+  document.addEventListener('focusin', function () { onViewport(); setTimeout(onViewport, 350); });   // and again once the keyboard has slid in
 
   /* ================= VISUALIZATIONS ================= */
   function runViz(box, ex) {
@@ -2382,7 +2396,21 @@
       setTimeout(function () { var s = $('#cs'); if (s) s.focus(); }, 60);
     }
   });
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    var hadSW = !!navigator.serviceWorker.controller, bootAt = Date.now(), reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!hadSW || reloading) return;   // first install: this page is already current
+      if (Date.now() - bootAt < 10000 && !typingField()) { reloading = true; SRS.saveNow(); location.reload(); return; }
+      var t = el('<div class="toast update-toast"><span>A new version is ready.</span><button class="btn small primary" type="button">Reload</button></div>');
+      $('button', t).addEventListener('click', function () { reloading = true; SRS.saveNow(); location.reload(); });
+      $('#toasts').appendChild(t);
+    });
+    addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reg.update().catch(function () {}); });   // check for updates when the app comes back
+      }).catch(function () {});
+    });
+  }
   if (SRS.state.settings.theme !== 'system') setTheme(SRS.state.settings.theme); else syncThemeBtn();
   SRS.checkBadges();
   route();
