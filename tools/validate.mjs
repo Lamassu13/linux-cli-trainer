@@ -69,7 +69,12 @@ for (const m of C.modules) {
         else if (new Set(qz.choices).size !== qz.choices.length) E(`${qz.id}: duplicate choices`);
         if (qz.type === 'output' && !qz.out) E(`${qz.id}: output quiz needs out`);
       } else if (qz.type === 'fill') { if (!Array.isArray(qz.accept) || !qz.accept.length) E(`${qz.id}: fill needs accept[]`); }
-      else if (qz.type === 'order') { if (!Array.isArray(qz.parts) || qz.parts.length < 2) E(`${qz.id}: order needs parts[]`); }
+      else if (qz.type === 'order') {
+        if (!Array.isArray(qz.parts) || qz.parts.length < 2) E(`${qz.id}: order needs parts[]`);
+        const key = (a) => a.slice().sort().join('\u0000');
+        for (const r of qz.free || []) if (!(Array.isArray(r) && r[0] >= 0 && r[1] > r[0] && r[1] < qz.parts.length)) E(`${qz.id}: bad free range ${JSON.stringify(r)}`);
+        for (const alt of qz.alts || []) if (!Array.isArray(alt) || key(alt) !== key(qz.parts)) E(`${qz.id}: an alt must use exactly the same pieces as parts`);
+      }
       else E(`${qz.id}: unknown quiz type ${qz.type}`);
       if (!qz.q) E(`${qz.id}: missing q`);
     }

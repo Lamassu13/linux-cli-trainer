@@ -134,12 +134,14 @@ window.CONTENT = {
        "type": "order",
        "q": "Arrange the parts of the typical prompt [me@linuxbox ~]$ in order.",
        "parts": [
+        "[",
         "me",
         "@",
         "linuxbox",
-        "~",
-        "$"
-       ]
+        " ~",
+        "]$"
+       ],
+       "join": ""
       }
      ]
     },
@@ -1229,6 +1231,12 @@ window.CONTENT = {
         "ls",
         "-lt",
         "--reverse"
+       ],
+       "free": [
+        [
+         1,
+         2
+        ]
        ]
       }
      ],
@@ -2376,6 +2384,12 @@ window.CONTENT = {
         "dir1",
         "dir2",
         "dir3"
+       ],
+       "free": [
+        [
+         1,
+         3
+        ]
        ]
       }
      ]
@@ -2549,6 +2563,12 @@ window.CONTENT = {
         "file1",
         "file2",
         "dir1"
+       ],
+       "free": [
+        [
+         1,
+         2
+        ]
        ]
       }
      ]
@@ -5048,7 +5068,8 @@ window.CONTENT = {
        "cmd": "head",
        "q": "Print the first 5 lines of ls-output.txt.",
        "accept": [
-        "head -n 5 ls-output.txt"
+        "head -n 5 ls-output.txt",
+        "head -5 ls-output.txt"
        ]
       },
       {
@@ -6153,7 +6174,7 @@ window.CONTENT = {
        "kind": "builtin",
        "summary": "Display or manipulate the history list",
        "syntax": "history",
-       "explain": "history prints the saved command list with a line number in front of each entry. The list lives in a file called bash_history in your home directory and usually holds the last 500 or 1,000 commands. Piping it into grep is a fast way to find an old command.",
+       "explain": "history prints the saved command list with a line number in front of each entry. The list lives in a file called .bash_history in your home directory and usually holds the last 500 or 1,000 commands. Piping it into grep is a fast way to find an old command.",
        "examples": [
         {
          "cmd": "history | less",
@@ -8452,14 +8473,13 @@ window.CONTENT = {
       },
       {
        "id": "ch11.startfile.q2",
-       "type": "order",
+       "type": "fill",
        "cmd": "export",
-       "q": "Build: add $HOME/bin to the end of PATH",
-       "parts": [
-        "PATH=",
-        "$PATH",
-        ":",
-        "$HOME/bin"
+       "q": "Type the line that adds $HOME/bin to the end of PATH.",
+       "accept": [
+        "PATH=$PATH:$HOME/bin",
+        "PATH=\"$PATH:$HOME/bin\"",
+        "export PATH=$PATH:$HOME/bin"
        ]
       },
       {
@@ -8846,7 +8866,8 @@ window.CONTENT = {
         "type the text",
         "ESC",
         ":w"
-       ]
+       ],
+       "lines": true
       },
       {
        "id": "ch12.start.q4",
@@ -9372,16 +9393,11 @@ window.CONTENT = {
       },
       {
        "id": "ch12.search.q3",
-       "type": "order",
+       "type": "fill",
        "cmd": "vi",
-       "q": "Build: substitute line with Line on all lines, every match, asking each time",
-       "parts": [
-        ":",
-        "%",
-        "s",
-        "/line/Line/",
-        "g",
-        "c"
+       "q": "In vi, type the command that changes line to Line on every line, every match, asking each time.",
+       "accept": [
+        ":%s/line/Line/gc"
        ]
       },
       {
@@ -9784,14 +9800,11 @@ window.CONTENT = {
      "quiz": [
       {
        "id": "ch13.try.q1",
-       "type": "order",
+       "type": "fill",
        "cmd": "ps1",
-       "q": "Build: back up the current prompt into ps1_old",
-       "parts": [
-        "ps1_old=",
-        "\"",
-        "$PS1",
-        "\""
+       "q": "Type the command that backs up the current prompt into a variable named ps1_old.",
+       "accept": [
+        "ps1_old=\"$PS1\""
        ]
       },
       {
@@ -9952,11 +9965,9 @@ window.CONTENT = {
        "cmd": "ps1",
        "q": "Build a red prompt that resets color afterward",
        "parts": [
-        "PS1=\"",
-        "\\[\\033[0;31m\\]",
-        "<\\u@\\h \\W>\\$",
-        "\\[\\033[0m\\]",
-        " \""
+        "PS1=\"\\[\\033[0;31m\\]<\\u@\\h",
+        "\\W>\\$\\[\\033[0m\\]",
+        "\""
        ]
       }
      ]
@@ -10417,7 +10428,8 @@ window.CONTENT = {
        "cmd": "apt-get",
        "q": "On a Debian system, uninstall the emacs package.",
        "accept": [
-        "apt-get remove emacs"
+        "apt-get remove emacs",
+        "sudo apt-get remove emacs"
        ]
       },
       {
@@ -10610,7 +10622,7 @@ window.CONTENT = {
        "q": "Which yum subcommand removes a package?",
        "choices": [
         "erase",
-        "remove",
+        "uninstall",
         "delete",
         "purge"
        ],
@@ -10812,7 +10824,8 @@ window.CONTENT = {
        "cmd": "mount",
        "q": "Mount the ISO file image.iso at /mnt/iso_image using a loop device.",
        "accept": [
-        "mount -t iso9660 -o loop image.iso /mnt/iso_image"
+        "mount -t iso9660 -o loop image.iso /mnt/iso_image",
+        "sudo mount -t iso9660 -o loop image.iso /mnt/iso_image"
        ]
       },
       {
@@ -11424,6 +11437,12 @@ window.CONTENT = {
         "-R",
         "-J",
         "~/cd-rom-files"
+       ],
+       "free": [
+        [
+         3,
+         4
+        ]
        ]
       }
      ]
@@ -11634,7 +11653,8 @@ window.CONTENT = {
        "cmd": "ip",
        "q": "Display the network interfaces and their addresses with the ip program.",
        "accept": [
-        "ip a"
+        "ip a",
+        "ip addr"
        ]
       },
       {
@@ -12589,7 +12609,7 @@ window.CONTENT = {
        "type": "output",
        "cmd": "find",
        "q": "In the fixture home, which command prints exactly these two lines?",
-       "out": "/home/me/Pictures/cat.jpg\n/home/me/Pictures/beach.jpg",
+       "out": "/home/me/Pictures/beach.jpg\n/home/me/Pictures/cat.jpg",
        "choices": [
         "find ~ -name '*.jpg'",
         "find ~ -name '*.png'",
@@ -12692,6 +12712,17 @@ window.CONTENT = {
         "-not",
         "-perm",
         "0700"
+       ],
+       "alts": [
+        [
+         "find",
+         "~",
+         "-not",
+         "-perm",
+         "0700",
+         "-type",
+         "d"
+        ]
        ]
       }
      ],
@@ -13477,7 +13508,9 @@ window.CONTENT = {
        "cmd": "tar",
        "q": "Create an archive named playground.tar of the playground directory.",
        "accept": [
-        "tar cf playground.tar playground"
+        "tar cf playground.tar playground",
+        "tar -cf playground.tar playground",
+        "tar cvf playground.tar playground"
        ]
       },
       {
@@ -14139,6 +14172,20 @@ window.CONTENT = {
         "-i",
         "'^..j.r$'",
         "/usr/share/dict/words"
+       ],
+       "alts": [
+        [
+         "grep",
+         "'^..j.r$'",
+         "-i",
+         "/usr/share/dict/words"
+        ],
+        [
+         "grep",
+         "'^..j.r$'",
+         "/usr/share/dict/words",
+         "-i"
+        ]
        ]
       }
      ]
@@ -16954,6 +17001,15 @@ window.CONTENT = {
         "20",
         "-s",
         "notes.txt"
+       ],
+       "alts": [
+        [
+         "fold",
+         "-s",
+         "-w",
+         "20",
+         "notes.txt"
+        ]
        ]
       },
       {
@@ -17135,6 +17191,16 @@ window.CONTENT = {
         "-w",
         "65",
         "distros.txt"
+       ],
+       "alts": [
+        [
+         "pr",
+         "-w",
+         "65",
+         "-l",
+         "15",
+         "distros.txt"
+        ]
        ]
       }
      ]
@@ -17765,6 +17831,12 @@ window.CONTENT = {
         "pr",
         "-3",
         "-t"
+       ],
+       "free": [
+        [
+         4,
+         5
+        ]
        ]
       },
       {
@@ -19062,7 +19134,8 @@ window.CONTENT = {
         "#!/bin/bash",
         "# This is our first script.",
         "echo 'Hello World!'"
-       ]
+       ],
+       "lines": true
       }
      ]
     },
@@ -19405,7 +19478,8 @@ window.CONTENT = {
         "-type f \\",
         "-not -perm 0600 \\",
         "-exec chmod 0600 '{}' ';'"
-       ]
+       ],
+       "lines": true
       }
      ]
     }
@@ -19854,7 +19928,8 @@ window.CONTENT = {
         "<html>",
         "</html>",
         "_EOF_"
-       ]
+       ],
+       "lines": true
       },
       {
        "id": "ch25.heredoc.q4",
@@ -19978,7 +20053,8 @@ window.CONTENT = {
         "echo \"Step 2\"",
         "return",
         "}"
-       ]
+       ],
+       "lines": true
       },
       {
        "id": "ch26.functions.q3",
@@ -20089,7 +20165,8 @@ window.CONTENT = {
         "local foo",
         "foo=1",
         "echo \"funct_1: foo = $foo\""
-       ]
+       ],
+       "lines": true
       }
      ]
     },
@@ -20306,7 +20383,8 @@ window.CONTENT = {
         "else",
         "commands",
         "fi"
-       ]
+       ],
+       "lines": true
       },
       {
        "id": "ch27.if.q2",
@@ -21139,6 +21217,15 @@ window.CONTENT = {
         "-sp",
         "\"Enter secret passphrase > \"",
         "secret_pass"
+       ],
+       "alts": [
+        [
+         "read",
+         "-sp",
+         "\"Enter secret passphrase > \"",
+         "-t 10",
+         "secret_pass"
+        ]
        ]
       }
      ]
@@ -21326,7 +21413,8 @@ window.CONTENT = {
         "echo the menu",
         "read -p \"Enter selection [0-3] > \"",
         "if [[ \"$REPLY\" =~ ^[0-3]$ ]]; then"
-       ]
+       ],
+       "lines": true
       }
      ]
     }
@@ -21424,7 +21512,8 @@ window.CONTENT = {
         "echo \"$count\"",
         "count=$((count + 1))",
         "done"
-       ]
+       ],
+       "lines": true
       },
       {
        "id": "ch29.while.q2",
@@ -21564,7 +21653,8 @@ window.CONTENT = {
         "if [[ \"$REPLY\" == 0 ]]; then",
         "break",
         "fi"
-       ]
+       ],
+       "lines": true
       }
      ]
     },
@@ -21624,7 +21714,8 @@ window.CONTENT = {
         "while read distro version release; do",
         "printf ...",
         "done < distros.txt"
-       ]
+       ],
+       "lines": true
       },
       {
        "id": "ch29.files.q4",
@@ -21954,7 +22045,8 @@ window.CONTENT = {
         "dir_name names an existing directory",
         "dir_name names a nonexistent directory",
         "dir_name is empty"
-       ]
+       ],
+       "lines": true
       }
      ]
     },
@@ -22044,7 +22136,8 @@ window.CONTENT = {
         "echo \"Number is equal to 1.\"",
         "fi",
         "set +x"
-       ]
+       ],
+       "lines": true
       }
      ],
      "refs": [

@@ -64,4 +64,5 @@ t('prompt escapes and colours', () => { const s = fresh(); assert.equal(s.prompt
 t('load puzzle filesystem', () => { const s = fresh(); s.load({ remove: ['~/foo.txt'], dirs: ['~/escape/vault'], files: { '~/escape/.clue': 'look in vault', '~/escape/vault/code.txt': { data: '4815', mode: '000' }, '~/escape/old.log': { data: 'x', age: 600 } }, modes: { '~/escape/vault': '700' }, cwd: '~/escape' });
   assert.equal(s.cwd, '/home/me/escape'); assert.equal(out(s, 'ls'), 'old.log  vault\n'); assert.equal(out(s, 'cat .clue'), 'look in vault'); assert.match(out(s, 'cat vault/code.txt'), /Permission denied/);
   s.run('chmod 600 vault/code.txt'); assert.equal(out(s, 'cat vault/code.txt'), '4815'); assert.ok(s.check([{ t: 'absent', p: '~/foo.txt' }])[0]); assert.equal(out(s, 'ls -t | head -1'), 'vault\n'); });
+t('alias with several commands', () => { const s = fresh(); s.run("alias foo='cd /usr; ls; cd -'"); const r = s.run('foo'); assert.match(r.text, /games/); assert.equal(s.cwd, '/home/me'); assert.match(out(s, 'ls /usr/bin | grep zip'), /gzip/); });
 console.log(n + ' terminal checks passed' + (process.exitCode ? ' (with failures above)' : ''));

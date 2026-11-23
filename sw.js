@@ -1,7 +1,7 @@
 /* sw.js — offline support. All paths are relative to this file, so it works under /repo-name/.
  * Bump VERSION when you change files so returning visitors get the update.
  */
-var VERSION = 'lcl-v7';
+var VERSION = 'lcl-v8';
 var ASSETS = [
   './', './index.html', './css/styles.css',
   './js/content.js', './js/terminal.js', './js/srs.js', './js/app.js',

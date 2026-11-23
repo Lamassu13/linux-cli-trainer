@@ -15,7 +15,7 @@
 
   /* ---------- fixture filesystem ---------- */
   var BIN = 'bash cat chmod cp date df echo file ln ls mkdir mv pwd rm touch'.split(' ');
-  var USRBIN = ('cal cut du find fold free grep head id less man nl paste printenv ps sort stat tail tee tr uniq wc whatis which').split(' ');
+  var USRBIN = ('bzip2 cal cut du find fold free grep gunzip gzip head id less man nl paste printenv ps sort stat tail tee tr uniq unzip wc whatis which zip zipinfo').split(' ');
   var DISTROS = [
     ['SUSE', '10.2', '12/07/2006'], ['Fedora', '10', '11/25/2008'], ['SUSE', '11.0', '06/19/2008'],
     ['Ubuntu', '8.04', '04/24/2008'], ['Fedora', '8', '11/08/2007'], ['SUSE', '10.3', '10/04/2007'],
@@ -1438,8 +1438,16 @@
       }
       words.forEach(function (w) { argv = argv.concat(expandWord(w)); });
       if (aliases[argv[0]] && cmd.words[0].every(function (x) { return x.q === 0; })) {
+        var body = aliases[argv[0]], btoks = lex(body);
+        if (btoks.some(function (t) { return t.t === 'op'; })) {   // e.g. alias foo='cd /usr; ls; cd -'
+          if ((sh._aliasDepth = (sh._aliasDepth || 0) + 1) > 10) { sh._aliasDepth = 0; return err('bash: ' + argv[0] + ': alias loops back on itself'); }
+          var quoted = argv.slice(1).map(function (a) { return "'" + a.replace(/'/g, "'\\''") + "'"; }).join(' ');
+          var ar = execLine(body + (quoted ? ' ' + quoted : ''), true);
+          sh._aliasDepth--;
+          return { out: ar.out, err: ar.err, code: ar.code };
+        }
         var aw = [];
-        lex(aliases[argv[0]]).forEach(function (t) { if (t.t === 'w') aw = aw.concat(expandWord(t.w)); });
+        btoks.forEach(function (t) { if (t.t === 'w') aw = aw.concat(expandWord(t.w)); });
         argv = aw.concat(argv.slice(1));
       }
       assigns.forEach(function (kv) { vars[kv[0]] = kv[1]; });

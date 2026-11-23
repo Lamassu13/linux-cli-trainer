@@ -142,7 +142,11 @@
       })(p);
     }
   }
-  function dueCount() { var n = 0; Object.keys(SRS.state.cards).forEach(function (k) { if (SRS.isDue(k)) n++; }); return n; }
+  var cardIds = null;
+  function dueCount() {
+    if (!cardIds) { cardIds = Object.create(null); cardsFor(C.modules).forEach(function (c) { cardIds[c.id] = 1; }); }
+    var n = 0; Object.keys(SRS.state.cards).forEach(function (k) { if (cardIds[k] && SRS.isDue(k)) n++; }); return n;
+  }
   function renderTop() {
     var s = SRS.state;
     $('#topStats').innerHTML = '<span class="pill" title="Daily streak">🔥 ' + SRS.streakNow() + '</span><span class="pill" title="Level">Lv ' + SRS.level() + '</span>';
@@ -631,7 +635,7 @@
   /* ---- guided tasks ---- */
   var ALL_TASKS = [];
   LESSON_ORDER.forEach(function (l) { (l.tasks || []).forEach(function (t) { t.lesson = l; ALL_TASKS.push(t); }); });
-  var TASK_BY_ID = {};
+  var TASK_BY_ID = Object.create(null);
   ALL_TASKS.forEach(function (t) { TASK_BY_ID[t.id] = t; });
   var taskMode = { review: false, failed: false };
   function dueTaskIds() { return SRS.dueTasks().filter(function (id) { return TASK_BY_ID[id]; }); }
@@ -664,7 +668,8 @@
   function viewTerminal(root, arg) {
     var parts = (arg || '').split('/'), taskId = parts[0], review = parts[1] === 'review';
     var task = taskId ? TASK_BY_ID[taskId] || null : null;
-    if (task && review && !SRS.state.tasks[task.id]) review = false;   // can't review what was never done
+    var tr = task && SRS.state.treview[task.id];
+    if (task && review && !(SRS.state.tasks[task.id] && tr && tr[1] <= SRS.today())) review = false;   // only finished tasks that are due
     taskMode = { review: !!(task && review), failed: false };
     if (task) setBack(review ? '#/cards' : '#/lesson/' + task.lesson.id);
     var page = el('<div class="term-page' + (task ? ' with-task' : '') + '"></div>');
@@ -798,7 +803,7 @@
     var vv = window.visualViewport, h = vv ? vv.height : innerHeight, top = vv ? vv.offsetTop : 0, de = document.documentElement;
     var focused = typingField();
     if (!focused || !vvFull) vvFull = Math.max(h, focused ? 0 : innerHeight);   // full visible height while nothing is being typed
-    var kb = mqCoarse.matches && focused && (innerWidth < 820 || vvFull - h > 120);
+    var kb = mqCoarse.matches && focused && (vv ? vvFull - h > 120 : innerWidth < 820);
     de.style.setProperty('--vvh', h + 'px');
     de.style.setProperty('--vv-top', top + 'px');   // where the visible area starts (iOS pans it when the keyboard opens)
     document.body.classList.toggle('kb-open', kb);
@@ -1104,8 +1109,11 @@
         (l.commands || []).forEach(function (c) {
           out.push({ id: 'c:' + c.id, kind: 'c', cmd: c.id, front: c.name, back: c.summary, extra: c.syntax, mono: true, ans: c.name, accept: [] });
           (c.flags || []).forEach(function (f) {
+            var bare = f.f.split(/[ =]/)[0], uniqueBare = bare !== f.f && c.flags.filter(function (x) { return x.f.split(/[ =]/)[0] === bare; }).length === 1;
+            var forms = [f.f].concat(f.long ? [f.long, f.long.replace(/=.*$/, '')] : [], uniqueBare ? [bare] : []);
             out.push({ id: 'f:' + c.id + ':' + f.f, kind: 'f', cmd: c.id, name: c.name, front: c.name + ' ' + f.f, back: f.d, mono: true, ans: f.f,
-              accept: [c.name + ' ' + f.f].concat(f.long ? [f.long, c.name + ' ' + f.long] : []) });
+              accept: forms.concat(forms.map(function (x) { return c.name + ' ' + x; })).filter(function (x, i, a) { return x !== f.f && a.indexOf(x) === i; }),
+              siblings: c.flags.filter(function (x) { return x !== f; }).map(function (x) { return x.f; }) });
           });
           clozeCards(c).forEach(function (x) { out.push(x); });
         });
@@ -1129,6 +1137,7 @@
   function judge(item, typed) {
     var v = norm(typed), targets = [item.ans].concat(item.accept || []).map(norm);
     if (targets.indexOf(v) >= 0) return 'right';
+    if ((item.siblings || []).map(norm).indexOf(v) >= 0) return 'wrong';   // a real, different option is not a typo
     if (targets.some(function (t) { return t.toLowerCase() === v.toLowerCase() || (t.length >= 4 && lev(t, v) <= 1); })) return 'close';
     return 'wrong';
   }
@@ -1150,8 +1159,8 @@
       '</div><div id="flashHost"></div>';
     $('#deckSel').value = scope;
     $('#deckSel').addEventListener('change', function (e) { location.hash = '#/cards/' + e.target.value; });
-    $$('[data-front]', root).forEach(function (b) { b.addEventListener('click', function () { set.front = b.dataset.front; SRS.save(); route(true); }); });
-    $$('[data-mode]', root).forEach(function (b) { b.addEventListener('click', function () { set.mode = b.dataset.mode; SRS.save(); route(true); }); });
+    $$('[data-front]', root).forEach(function (b) { b.addEventListener('click', function () { SRS.state.settings.front = b.dataset.front; SRS.save(); route(true); }); });
+    $$('[data-mode]', root).forEach(function (b) { b.addEventListener('click', function () { SRS.state.settings.mode = b.dataset.mode; SRS.save(); route(true); }); });
     var host = $('#flashHost');
     if (!deck.length) { host.innerHTML = '<div class="card"><p>Nothing to review here right now. 🎉</p><div class="row"><a class="btn primary" href="#/cards/all">Study everything</a><a class="btn" href="#/lesson/' + esc(nextLesson().id) + '">Next lesson</a></div></div>'; return; }
 
@@ -1183,15 +1192,15 @@
     function show() {
       if (!queue.length) {
         st.innerHTML = '<div class="face" style="position:relative;height:100%"><div class="big">Done!</div><p>' + known + ' of ' + total + ' remembered · come back tomorrow for the next due cards.</p><div class="row" style="justify-content:center">' +
-          (SRS.dueTasks().length ? '<a class="btn primary" href="#/terminal/' + esc(SRS.dueTasks()[0]) + '/review">Redo a task</a>' : '') + '<a class="btn" href="#/quiz">Take a quiz</a></div></div>';
+          (dueTaskIds().length ? '<a class="btn primary" href="#/terminal/' + esc(dueTaskIds()[0]) + '/review">Redo a task</a>' : '') + '<a class="btn" href="#/quiz">Take a quiz</a></div></div>';
         form.hidden = true; grades.innerHTML = ''; $('.flash-actions', host).hidden = true; count.textContent = '';
         celebrate(); return;
       }
       item = queue[0]; revealed = false;
       var f = faceOf(item);
-      card = el('<div class="flash" role="button" tabindex="0" aria-label="Flashcard. Activate to flip."><span class="stamp yes">GOOD</span><span class="stamp no">AGAIN</span><div class="flash-inner">' +
+      card = el('<div class="flash"><span class="stamp yes" aria-hidden="true">GOOD</span><span class="stamp no" aria-hidden="true">AGAIN</span><div class="flash-inner">' +
         '<div class="face front"><span class="hint">' + esc(f.ask) + '</span><div class="' + (f.am ? 'big' : 'meaning') + '">' + esc(f.a) + '</div>' + (f.more || '') + '<span class="hint">Box ' + (SRS.box(item.id) || 'new') + '</span></div>' +
-        '<div class="face back"><div class="verdict" aria-live="polite"></div><div class="' + (f.bm ? 'big' : 'meaning') + '">' + esc(f.b) + '</div>' + (item.extra ? '<code>' + esc(item.extra) + '</code>' : '') +
+        '<div class="face back" aria-hidden="true"><div class="verdict" aria-live="polite"></div><div class="' + (f.bm ? 'big' : 'meaning') + '">' + esc(f.b) + '</div>' + (item.extra ? '<code>' + esc(item.extra) + '</code>' : '') +
         (item.cmd && CMDS.get(item.cmd) ? '<a class="hint" href="#/cmd/' + esc(item.cmd) + '">open lesson</a>' : '') + '</div></div></div>');
       st.innerHTML = ''; st.appendChild(card);
       anim(card, [{ opacity: 0, transform: 'translateY(16px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 260 });
@@ -1213,10 +1222,14 @@
       $$('[data-g]', grades).forEach(function (b) { b.addEventListener('click', function () { gradeIt(+b.dataset.g); }); });
       if (focusLevel !== undefined) { var fb = $('[data-g="' + focusLevel + '"]', grades); if (fb) fb.focus({ preventScroll: true }); }
     }
-    function flip() { if (card && (mode === 'flip' || revealed)) card.classList.toggle('flipped'); }
+    function flip() { if (card && (mode === 'flip' || revealed)) setFlipped(!card.classList.contains('flipped')); }
+    function setFlipped(on) {   // only the visible face is exposed to screen readers
+      card.classList.toggle('flipped', on);
+      $('.face.front', card).setAttribute('aria-hidden', String(on)); $('.face.back', card).setAttribute('aria-hidden', String(!on));
+    }
     function reveal(result, typed) {
       revealed = true; input.disabled = true; form.hidden = true;
-      card.classList.add('flipped');
+      setFlipped(true);
       var v = $('.verdict', card);
       if (result === 'right') { v.className = 'verdict right'; v.textContent = '✓ Correct'; SRS.recalled(); showGrades([1, 2, 3], null, 2); }
       else if (result === 'close') { v.className = 'verdict close'; v.textContent = 'Almost: you typed “' + typed + '”'; showGrades([0, 1], { 1: 'Count it' }, 1); }
@@ -1264,7 +1277,7 @@
       }
       c.addEventListener('pointerup', end);
       c.addEventListener('pointercancel', function () { down = false; reset(); });
-      c.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); flip(); } });
+
     }
     $('[data-flip]', host).addEventListener('click', flip);
     function key(e) {
@@ -1374,7 +1387,7 @@
       if (answered) return; answered = true;
       SRS.answer(q.cmd, ok);
       fb.hidden = false; fb.className = 'feedback ' + (ok ? 'good' : 'bad');
-      fb.innerHTML = (ok ? '<b>✓ Correct!</b>' : '<b>✗ Not quite.</b> Answer: <code>' + esc(correctText) + '</code>') + (q.explain ? '<p style="margin:.4em 0 0">' + esc(q.explain) + '</p>' : '') +
+      fb.innerHTML = (ok ? '<b>✓ Correct!</b>' : '<b>✗ Not quite.</b> Answer: ' + (q.lines ? '<pre class="order-answer">' + esc(correctText) + '</pre>' : '<code>' + esc(correctText) + '</code>')) + (q.explain ? '<p style="margin:.4em 0 0">' + esc(q.explain) + '</p>' : '') +
         (q.cmd && CMDS.get(q.cmd) ? ' <a href="#/cmd/' + esc(q.cmd) + '">Review ' + esc(CMDS.get(q.cmd).name) + '</a>' : '') +
         '<div class="row end" style="margin-top:10px"><button class="btn primary" type="button" data-next>Next ›</button></div>';
       box.appendChild(fb);
@@ -1408,8 +1421,8 @@
       box.appendChild(form);
       setTimeout(function () { if (matchMedia('(pointer: fine)').matches) $('input', form).focus(); }, 50);
     } else if (q.type === 'order') {
-      var zoneA = el('<div class="order-zone answer" role="group" data-empty="Tap pieces below to build the command" aria-label="Your answer"></div>');
-      var zoneP = el('<div class="order-zone" role="group" aria-label="Pieces"></div>');
+      var zoneA = el('<div class="order-zone answer' + (q.lines ? ' lines' : '') + '" role="group" data-empty="Tap pieces below to build the ' + (q.lines ? 'lines in order' : 'command') + '" aria-label="Your answer"></div>');
+      var zoneP = el('<div class="order-zone' + (q.lines ? ' lines' : '') + '" role="group" aria-label="Pieces"></div>');
       var parts = q.parts.slice(), shuffled = shuffle(parts.map(function (p, i) { return { p: p, i: i }; }));
       if (shuffled.every(function (x, i) { return x.i === i; }) && parts.length > 1) shuffled.reverse();
       shuffled.forEach(function (x) {
@@ -1424,10 +1437,10 @@
       $('[data-clear]', check).addEventListener('click', function () { if (!answered) $$('.ochip', zoneA).forEach(function (b) { zoneP.appendChild(b); }); });
       $('[data-check]', check).addEventListener('click', function () {
         if (answered) return;
-        var got = $$('.ochip', zoneA).map(function (b) { return b.dataset.p; }).join(' ');
-        if (!got) return;
+        var got = $$('.ochip', zoneA).map(function (b) { return b.dataset.p; });
+        if (!got.length) return;
         $$('.ochip', box).forEach(function (b) { b.disabled = true; });
-        finish(norm(got) === norm(parts.join(' ')), parts.join(' '));
+        finish(orderOk(q, got), parts.join(q.lines ? '\n' : q.join !== undefined ? q.join : ' '));
       });
     }
     box._key = function (e) {
@@ -1435,6 +1448,23 @@
       if (!answered && /^[1-9]$/.test(e.key)) { var cs = $$('.choice', box); if (cs[+e.key - 1]) cs[+e.key - 1].click(); }
     };
     return box;
+  }
+  // Is this arrangement right? q.free lists index ranges [from, to] whose pieces may come in any order;
+  // q.alts lists other complete sequences that are equally valid.
+  function orderOk(q, got) {
+    return [q.parts].concat(q.alts || []).some(function (seq, si) {
+      if (seq.length !== got.length) return false;
+      var free = si === 0 ? q.free || [] : [];
+      for (var i = 0; i < seq.length; i++) {
+        var g = free.filter(function (r) { return i >= r[0] && i <= r[1]; })[0];
+        if (g) {
+          var a = seq.slice(g[0], g[1] + 1).map(norm).sort().join('\u0000'), b = got.slice(g[0], g[1] + 1).map(norm).sort().join('\u0000');
+          if (a !== b) return false;
+          i = g[1];
+        } else if (norm(seq[i]) !== norm(got[i])) return false;
+      }
+      return true;
+    });
   }
   // Pointer-events drag to reorder chips in the answer zone (tap still works; keyboard uses Enter/Space)
   function dragChip(b, zoneA, zoneP) {
@@ -1488,8 +1518,9 @@
     var scope = o.scope;
     setBack('#/quiz');
     var qs = buildQuiz(scope, o.n, o.seed);
+    var ownsDaily = !!o.daily && SRS.state.daily[o.daily] === undefined, dailyStarted = false;
     root.innerHTML = '<h1>' + esc(o.title) + '</h1>' + (o.sub ? '<p class="muted">' + esc(o.sub) + '</p>' : '') +
-      (o.friend !== null && o.friend !== undefined ? '<div class="card challenge-banner"><b>🏆 A friend scored ' + o.friend + ' / ' + o.n + ' on this exact quiz.</b> Same questions, same order. Can you beat it?</div>' : '') +
+      (o.friend !== null && o.friend !== undefined ? '<div class="card challenge-banner"><b>🏆 A friend scored ' + o.friend + ' / ' + qs.length + ' on this exact quiz.</b> Same questions, same order. Can you beat it?</div>' : '') +
       (o.daily && SRS.state.daily[o.daily] !== undefined ? '<div class="card challenge-banner">You already did today’s challenge (' + SRS.state.daily[o.daily] + ' / ' + o.n + '). Practise again for fun; only the first score counts.</div>' : '');
     if (!qs.length) { root.innerHTML += '<div class="card"><p>' + (scope === 'weak' ? 'No weak commands yet — answer some quizzes first and your mistakes will collect here.' : 'No questions available here.') + '</p><a class="btn primary" href="#/quiz">Pick another quiz</a></div>'; return; }
     var top = el('<div class="quiz-top"><span class="count" aria-live="polite"></span><div class="progressbar" aria-hidden="true"><i style="transform:scaleX(0)"></i></div></div>');
@@ -1503,11 +1534,14 @@
       $('i', top).style.transform = 'scaleX(' + (i / qs.length) + ')';
       if (i >= qs.length) return end();
       $('.count', top).textContent = 'Question ' + (i + 1) + ' of ' + qs.length + ' · score ' + score;
-      box = renderQuestion(host, qs[i], function (ok) { if (ok) score++; else missed.push(qs[i]); i++; step(); });
+      box = renderQuestion(host, qs[i], function (ok) {
+        if (ownsDaily && !dailyStarted) { dailyStarted = true; SRS.dailyStart(o.daily); }   // leaving now still uses up today's attempt
+        if (ok) score++; else missed.push(qs[i]); i++; step();
+      });
       anim(box, [{ opacity: 0, transform: 'translateX(14px)' }, { opacity: 1, transform: 'none' }], { duration: 240 });
     }
     function end() {
-      if (o.daily) { if (SRS.dailyResult(o.daily, score, qs.length)) toast('Daily challenge done · +' + (10 + score * 3) + ' XP', '📅'); }
+      if (o.daily) { if (ownsDaily && SRS.dailyFinish(o.daily, score, qs.length)) toast('Daily challenge done · +' + (10 + score * 3) + ' XP', '📅'); }
       else SRS.quizResult(scope, score, qs.length);
       var pct = Math.round(100 * score / qs.length);
       if (pct >= 80) celebrate();
@@ -1793,7 +1827,7 @@
   var STORY = GAMES.story || [], ROOMS = GAMES.rooms || [], GOLF = GAMES.golf || [], BOSSES = GAMES.bosses || [];
   var MISSIONS = [];
   STORY.forEach(function (d) { d.missions.forEach(function (m) { m.day = d; MISSIONS.push(m); }); });
-  var GAME_BY = { story: {}, room: {}, golf: {}, boss: {} };
+  var GAME_BY = { story: Object.create(null), room: Object.create(null), golf: Object.create(null), boss: Object.create(null) };
   MISSIONS.forEach(function (m) { GAME_BY.story[m.id] = m; });
   ROOMS.forEach(function (r) { GAME_BY.room[r.id] = r; });
   GOLF.forEach(function (h) { GAME_BY.golf[h.id] = h; });

@@ -173,11 +173,18 @@
     if (total >= 8 && score === total) state.counts.perfect++;
     save(); checkBadges();
   }
-  // daily challenge: only the first attempt of each (UTC) day is scored
-  function dailyResult(day, score, total) {
+  // daily challenge: only the first attempt of each (UTC) day counts. It is claimed at the first answer
+  // (score 0 if abandoned), so seeing the answers and restarting can't earn a perfect score.
+  function dailyStart(day) {
     if (state.daily[day] !== undefined) return false;
-    state.daily[day] = score; state.counts.dailies++;
+    state.daily[day] = 0; state.counts.dailies++;
     Object.keys(state.daily).sort(function (a, b) { return b - a; }).slice(120).forEach(function (k) { delete state.daily[k]; });
+    save(); checkBadges();
+    return true;
+  }
+  function dailyFinish(day, score, total) {
+    if (state.daily[day] === undefined) dailyStart(day);
+    state.daily[day] = score;
     if (total >= 8 && score === total) state.counts.perfect++;
     addXP(10 + score * 3, 'daily');
     return true;
@@ -250,7 +257,7 @@
     setContent: function (c) { content = c; },
     level: level, levelSpan: levelSpan, streakNow: streakNow, addXP: addXP,
     grade: grade, preview: preview, memory: memory, recalled: recalled, isDue: isDue, box: box, INTERVALS: INTERVALS,
-    reviewTask: reviewTask, dueTasks: dueTasks, dailyResult: dailyResult, gameResult: gameResult, gameDone: gameDone,
+    reviewTask: reviewTask, dueTasks: dueTasks, dailyStart: dailyStart, dailyFinish: dailyFinish, gameResult: gameResult, gameDone: gameDone,
     answer: answer, weak: weak, mistakes: mistakes,
     lessonDone: lessonDone, taskDone: taskDone, quizResult: quizResult, ran: ran, speedResult: speedResult,
     BADGES: BADGES, checkBadges: checkBadges,
